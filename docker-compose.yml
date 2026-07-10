@@ -1,0 +1,16 @@
+services:
+  last-epoch-companion:
+    build: .
+    container_name: last-epoch-companion
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://le.adlethome.ru}
+      LE_COMPANION_PAIRING_TOKEN: ${LE_COMPANION_PAIRING_TOKEN}
+      LE_COMPANION_DATA_DIR: /data
+      LE_COMPANION_MAX_BODY_BYTES: 268435456
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./data:/data

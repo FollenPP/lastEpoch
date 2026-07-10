@@ -1,0 +1,11 @@
+{
+  "name": "Last Epoch Companion",
+  "author": "Codex",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["last-epoch", "steam-deck", "companion"],
+    "description": "Send Last Epoch Full Offline saves and loot filters to a local laptop analyzer.",
+    "image": "https://raw.githubusercontent.com/SteamDeckHomebrew/decky-loader/main/assets/plugin_loader.png"
+  }
+}

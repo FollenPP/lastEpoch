@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Last Epoch Deck Companion</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Full Offline Steam Deck</p>
+        <h1>Last Epoch Deck Companion</h1>
+      </div>
+      <button id="refreshButton" class="primary">Refresh</button>
+    </header>
+
+    <main class="layout">
+      <section class="panel sidebar">
+        <h2>Server</h2>
+        <dl id="serverInfo" class="details"></dl>
+        <div class="pairing">
+          <label for="pairingToken">Access token</label>
+          <div class="tokenRow">
+            <input id="pairingToken" type="password" />
+            <button id="toggleToken" title="Show or hide pairing token">Show</button>
+          </div>
+          <button id="saveToken" class="fullButton">Save Token</button>
+        </div>
+        <h2>Device Pairing</h2>
+        <div id="pairingList" class="snapshotList"></div>
+        <h2>Snapshots</h2>
+        <div id="snapshotList" class="snapshotList"></div>
+      </section>
+
+      <section class="content">
+        <div id="emptyState" class="emptyState">
+          <h2>No snapshot selected</h2>
+          <p>Open the Decky plugin on Steam Deck, enter this server URL and token, then press Send Snapshot.</p>
+        </div>
+
+        <article id="snapshotDetail" class="hidden"></article>
+      </section>
+    </main>
+
+    <template id="snapshotButtonTemplate">
+      <button class="snapshotButton">
+        <span class="snapshotTitle"></span>
+        <span class="snapshotMeta"></span>
+      </button>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
