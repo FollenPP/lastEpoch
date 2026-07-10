@@ -71,3 +71,21 @@ The cleanest HTTPS path is still a domain or subdomain pointed at `185.201.28.10
 After pairing, the Deck stores a device token and no longer needs keyboard input.
 
 On a public server, `/downloads/last-epoch-companion-settings.json` does not expose the admin token. Use pairing instead of setup-file import.
+
+## Updating
+
+Update the VPS app:
+
+```bash
+cd ~/lastEpoch
+git pull
+docker compose up -d --build
+```
+
+Update the Steam Deck plugin:
+
+```text
+Decky -> Last Epoch Companion -> Updates -> Check Updates -> Install Latest
+```
+
+Then restart Decky or reboot Steam Deck.

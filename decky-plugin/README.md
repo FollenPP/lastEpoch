@@ -26,6 +26,16 @@ pnpm run build
 
 For local development, install the built plugin folder into Decky according to the Decky plugin development workflow.
 
+## Updates
+
+The plugin can check GitHub Releases and install the latest plugin zip from:
+
+```text
+https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip
+```
+
+Use `Updates -> Check Updates -> Install Latest`, then restart Decky or reboot Steam Deck.
+
 ## Safety
 
 - Save files are read only.

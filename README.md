@@ -63,6 +63,25 @@ The plugin UI is intentionally button-first so it works with the Steam Deck cont
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+## Steam Deck Updates
+
+Install or update the Decky plugin once from GitHub:
+
+```bash
+curl -L https://raw.githubusercontent.com/FollenPP/lastEpoch/master/scripts/install-on-steam-deck.sh -o /tmp/install-last-epoch-companion.sh
+chmod +x /tmp/install-last-epoch-companion.sh
+/tmp/install-last-epoch-companion.sh https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip
+```
+
+After `v0.1.3`, the plugin has an `Updates` section:
+
+```text
+Check Updates
+Install Latest
+```
+
+After installing an update from Decky, restart Decky or reboot Steam Deck.
+
 Recommended public endpoint without a domain:
 
 ```text

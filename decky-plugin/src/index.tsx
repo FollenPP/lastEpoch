@@ -34,6 +34,16 @@ type SendResult = {
   };
 };
 
+type UpdateInfo = {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  releaseUrl: string;
+  assetUrl: string;
+  installed?: boolean;
+  requiresRestart?: boolean;
+};
+
 const getSettings = callable<[], Settings>("get_settings");
 const saveSettings = callable<[settings: Settings], Settings>("save_settings");
 const importSetupFile = callable<[], Settings>("import_setup_file");
@@ -43,6 +53,8 @@ const checkPairing = callable<[], { id: string; code: string; status: string; de
 const scanLocal = callable<[], ScanResult>("scan_local");
 const sendSnapshot = callable<[], SendResult>("send_snapshot");
 const downloadReviewFilter = callable<[snapshotId: string], { fileName: string; path: string }>("download_review_filter");
+const checkUpdate = callable<[], UpdateInfo>("check_update");
+const installLatestUpdate = callable<[], UpdateInfo>("install_latest_update");
 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
@@ -62,6 +74,7 @@ function Content() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("Send setup file from laptop, then press Load Setup File.");
   const [selfTestCount, setSelfTestCount] = useState(0);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     getSettings()
@@ -202,6 +215,44 @@ function Content() {
     }
   };
 
+  const checkForUpdates = async () => {
+    setBusy(true);
+    try {
+      const result = await checkUpdate();
+      setUpdateInfo(result);
+      setStatus(
+        result.updateAvailable
+          ? `Update available: ${result.currentVersion} -> ${result.latestVersion}.`
+          : `Plugin is up to date: ${result.currentVersion}.`,
+      );
+    } catch (error) {
+      setStatus(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    setBusy(true);
+    try {
+      const result = await installLatestUpdate();
+      setUpdateInfo(result);
+      setStatus(
+        result.installed
+          ? `Installed ${result.latestVersion}. Restart Decky or reboot Steam Deck.`
+          : `Already up to date: ${result.currentVersion}.`,
+      );
+      toaster.toast({
+        title: "Last Epoch Companion",
+        body: result.installed ? "Update installed. Restart Decky." : "Already up to date.",
+      });
+    } catch (error) {
+      setStatus(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <PanelSection title="Diagnostics">
@@ -260,6 +311,27 @@ function Content() {
         </PanelSectionRow>
         <PanelSectionRow>
           <ActionField label="Download Review Filter" description="Save generated filter" disabled={busy || !settings.lastSnapshotId} onAction={downloadFilter} />
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title="Updates">
+        <PanelSectionRow>
+          <Field
+            label="Installed"
+            description={updateInfo ? `Current ${updateInfo.currentVersion}, latest ${updateInfo.latestVersion}` : "Press Check Updates"}
+            focusable={false}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionField label="Check Updates" description="Read latest GitHub release" disabled={busy} onAction={checkForUpdates} />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionField
+            label="Install Latest"
+            description={updateInfo?.updateAvailable ? `Install ${updateInfo.latestVersion}` : "Check updates first"}
+            disabled={busy || !updateInfo?.updateAvailable}
+            onAction={installUpdate}
+          />
         </PanelSectionRow>
       </PanelSection>
 

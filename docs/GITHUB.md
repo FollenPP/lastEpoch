@@ -43,3 +43,11 @@ chmod +x /tmp/install-last-epoch-companion.sh
 ```
 
 The same command updates the plugin later.
+
+Starting with `v0.1.3`, the Decky plugin also includes:
+
+```text
+Updates -> Check Updates -> Install Latest
+```
+
+That flow downloads the latest GitHub release asset and replaces the plugin files in place. A Decky restart or Steam Deck reboot is still required after installing.

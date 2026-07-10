@@ -44,6 +44,7 @@ sudo rm -rf "$TARGET"
 sudo mkdir -p "$TARGET"
 sudo cp -a "$SRC/." "$TARGET/"
 sudo chmod -R a+rX "$TARGET"
+sudo chown -R "$USER:$USER" "$TARGET" 2>/dev/null || true
 
 echo "Installed files:"
 find "$TARGET" -maxdepth 3 -type f | sort

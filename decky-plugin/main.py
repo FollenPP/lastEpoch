@@ -4,9 +4,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
+import tempfile
 import urllib.error
 import urllib.request
+from zipfile import ZipFile
 
 try:
     import decky
@@ -26,8 +29,12 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.2"
+PLUGIN_VERSION = "0.1.3"
 DEFAULT_SERVER_URL = "http://185.201.28.103"
+GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
+GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
+PLUGIN_ARCHIVE_DIR = "last-epoch-companion"
+PLUGIN_ARCHIVE_NAME = "last-epoch-companion.zip"
 DEFAULT_GAME_ROOT = Path(decky.DECKY_USER_HOME) / ".config" / "unity3d" / "Eleventh Hour Games" / "Last Epoch"
 DEFAULT_SAVES_ROOT = DEFAULT_GAME_ROOT / "Saves"
 DEFAULT_FILTERS_ROOT = DEFAULT_GAME_ROOT / "Filters"
@@ -76,6 +83,12 @@ class Plugin:
         settings = await asyncio.to_thread(_read_settings)
         return await asyncio.to_thread(_download_review_filter, settings, snapshot_id)
 
+    async def check_update(self):
+        return await asyncio.to_thread(_check_update)
+
+    async def install_latest_update(self):
+        return await asyncio.to_thread(_install_latest_update)
+
 
 def _settings_path():
     return Path(decky.DECKY_SETTINGS_DIR) / "last-epoch-companion.json"
@@ -102,7 +115,10 @@ def _read_settings():
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return _default_settings()
-    return {**_default_settings(), **loaded}
+    settings = {**_default_settings(), **loaded}
+    if "adlethome" in str(settings.get("serverUrl", "")):
+        settings["serverUrl"] = DEFAULT_SERVER_URL
+    return settings
 
 
 def _write_settings(settings):
@@ -142,8 +158,6 @@ def _import_setup_file():
 
     if not imported["serverUrl"]:
         raise ValueError("Setup file does not include serverUrl.")
-    if not imported["pairingToken"]:
-        raise ValueError("Setup file does not include pairingToken.")
 
     return _write_settings(imported)
 
@@ -265,6 +279,102 @@ def _download_review_filter(settings, snapshot_id):
         "fileName": file_name,
         "path": str(output_path),
     }
+
+
+def _check_update():
+    release = _fetch_latest_release()
+    latest_version = str(release.get("tag_name", "")).lstrip("v")
+    asset_url = _find_release_asset_url(release) or GITHUB_LATEST_ZIP_URL
+    update_available = _version_tuple(latest_version) > _version_tuple(PLUGIN_VERSION)
+    return {
+        "currentVersion": PLUGIN_VERSION,
+        "latestVersion": latest_version,
+        "updateAvailable": update_available,
+        "releaseUrl": release.get("html_url", ""),
+        "assetUrl": asset_url,
+    }
+
+
+def _install_latest_update():
+    update = _check_update()
+    if not update["updateAvailable"]:
+        return {**update, "installed": False, "requiresRestart": False}
+
+    with tempfile.TemporaryDirectory(prefix="le-companion-update-") as temp_dir:
+        temp_path = Path(temp_dir)
+        zip_path = temp_path / PLUGIN_ARCHIVE_NAME
+        _download_file(update["assetUrl"], zip_path)
+
+        extract_dir = temp_path / "extract"
+        extract_dir.mkdir()
+        with ZipFile(zip_path) as archive:
+            archive.extractall(extract_dir)
+
+        source_dir = _find_plugin_source_dir(extract_dir)
+        target_dir = Path(__file__).resolve().parent
+        _copy_plugin_files(source_dir, target_dir)
+
+    return {**update, "installed": True, "requiresRestart": True}
+
+
+def _fetch_latest_release():
+    request = urllib.request.Request(
+        GITHUB_LATEST_RELEASE_URL,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"LastEpochCompanionDecky/{PLUGIN_VERSION}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _find_release_asset_url(release):
+    for asset in release.get("assets", []):
+        if asset.get("name") == PLUGIN_ARCHIVE_NAME:
+            return asset.get("browser_download_url")
+    return None
+
+
+def _download_file(url, destination):
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": f"LastEpochCompanionDecky/{PLUGIN_VERSION}"},
+    )
+    with urllib.request.urlopen(request, timeout=90) as response:
+        destination.write_bytes(response.read())
+
+
+def _find_plugin_source_dir(extract_dir):
+    direct = extract_dir / PLUGIN_ARCHIVE_DIR
+    candidates = [direct, extract_dir]
+    for candidate in candidates:
+        if (candidate / "plugin.json").exists() and (candidate / "main.py").exists() and (candidate / "dist" / "index.js").exists():
+            return candidate
+    raise ValueError("Downloaded plugin archive has an unexpected layout.")
+
+
+def _copy_plugin_files(source_dir, target_dir):
+    for name in ["plugin.json", "package.json", "main.py", "README.md", "LICENSE"]:
+        source = source_dir / name
+        if source.exists():
+            shutil.copy2(source, target_dir / name)
+
+    source_dist = source_dir / "dist"
+    target_dist = target_dir / "dist"
+    if target_dist.exists():
+        shutil.rmtree(target_dist)
+    shutil.copytree(source_dist, target_dist)
+
+
+def _version_tuple(value):
+    parts = []
+    for part in str(value).split("."):
+        digits = "".join(char for char in part if char.isdigit())
+        parts.append(int(digits or "0"))
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
 
 
 def _read_payload_files(root, kind):
