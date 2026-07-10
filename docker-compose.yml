@@ -6,7 +6,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8787
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://le.adlethome.ru}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://185.201.28.103}
       LE_COMPANION_PAIRING_TOKEN: ${LE_COMPANION_PAIRING_TOKEN}
       LE_COMPANION_DATA_DIR: /data
       LE_COMPANION_MAX_BODY_BYTES: 268435456

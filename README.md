@@ -9,7 +9,7 @@ The project has two parts:
 
 The server is intentionally dependency-free. It stores uploaded snapshots locally and never needs the game installed on the laptop.
 
-For production, run the server on a VPS at `https://le.adlethome.ru`. The Decky plugin can pair with it without typing on Steam Deck, then send snapshots from any network.
+For production without a domain, run the server on a VPS at `http://185.201.28.103`. The Decky plugin can pair with it without typing on Steam Deck, then send snapshots from any network.
 
 ## Run the Laptop Server
 
@@ -63,16 +63,16 @@ The plugin UI is intentionally button-first so it works with the Steam Deck cont
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Recommended public endpoint:
+Recommended public endpoint without a domain:
 
 ```text
-https://le.adlethome.ru
+http://185.201.28.103
 ```
 
-Create DNS:
+If you later buy or attach a domain, create DNS:
 
 ```text
-le.adlethome.ru -> 185.201.28.103
+your-domain.example -> 185.201.28.103
 ```
 
 ## Steam Deck Paths

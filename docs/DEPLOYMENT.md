@@ -5,9 +5,9 @@ Recommended production layout:
 ```text
 Steam Deck Decky plugin
         |
-        | HTTPS
+        | HTTP by public IP
         v
-https://le.adlethome.ru
+http://185.201.28.103
         |
         v
 Node server on VPS
@@ -15,15 +15,15 @@ Node server on VPS
 
 The Steam Deck no longer needs to be in the same Wi-Fi network as the laptop. The laptop, phone, and Deck all use the same public server.
 
-## DNS
+## No-Domain Mode
 
-Create an `A` record:
+This project can run without a domain:
 
 ```text
-le.adlethome.ru -> 185.201.28.103
+PUBLIC_BASE_URL=http://185.201.28.103
 ```
 
-Using a subdomain is cleaner than putting the app on the root domain.
+This is the easiest setup. The downside is that plain HTTP does not encrypt tokens or snapshots in transit. It is fine for first validation, but for long-term use prefer a domain with HTTPS, an IP certificate, or a private network such as Tailscale/WireGuard.
 
 ## VPS Install
 
@@ -48,21 +48,19 @@ openssl rand -base64 32
 Copy:
 
 ```bash
-sudo cp deploy/nginx/le.adlethome.ru.conf /etc/nginx/sites-available/le.adlethome.ru
-sudo ln -s /etc/nginx/sites-available/le.adlethome.ru /etc/nginx/sites-enabled/le.adlethome.ru
+sudo cp deploy/nginx/ip-only.conf /etc/nginx/sites-available/last-epoch-companion
+sudo ln -sf /etc/nginx/sites-available/last-epoch-companion /etc/nginx/sites-enabled/last-epoch-companion
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Then enable HTTPS:
+## HTTPS Later
 
-```bash
-sudo certbot --nginx -d le.adlethome.ru
-```
+The cleanest HTTPS path is still a domain or subdomain pointed at `185.201.28.103`. If you do not want a domain, you can keep HTTP for now and later switch to an IP-address certificate or a private VPN-style setup.
 
 ## Pairing
 
-1. Open `https://le.adlethome.ru` on the laptop.
+1. Open `http://185.201.28.103` on the laptop.
 2. Enter the admin token from `.env` into `Access token` and press `Save Token`.
 3. On Steam Deck, open Decky -> Last Epoch Companion.
 4. Press `Start Pairing`.

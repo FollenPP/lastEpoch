@@ -1,6 +1,6 @@
 {
   "name": "last-epoch-companion",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Decky plugin for sending Last Epoch offline snapshots to a local analyzer.",
   "type": "module",
   "scripts": {

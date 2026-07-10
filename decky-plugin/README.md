@@ -5,7 +5,7 @@ This plugin sends a read-only snapshot of Last Epoch Full Offline files to the l
 Production default server:
 
 ```text
-https://le.adlethome.ru
+http://185.201.28.103
 ```
 
 Default Steam Deck paths:

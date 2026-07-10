@@ -46,7 +46,7 @@ const downloadReviewFilter = callable<[snapshotId: string], { fileName: string; 
 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
-const defaultServerUrl = "https://le.adlethome.ru";
+const defaultServerUrl = "http://185.201.28.103";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({

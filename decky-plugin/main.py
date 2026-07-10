@@ -26,8 +26,8 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.0"
-DEFAULT_SERVER_URL = "https://le.adlethome.ru"
+PLUGIN_VERSION = "0.1.2"
+DEFAULT_SERVER_URL = "http://185.201.28.103"
 DEFAULT_GAME_ROOT = Path(decky.DECKY_USER_HOME) / ".config" / "unity3d" / "Eleventh Hour Games" / "Last Epoch"
 DEFAULT_SAVES_ROOT = DEFAULT_GAME_ROOT / "Saves"
 DEFAULT_FILTERS_ROOT = DEFAULT_GAME_ROOT / "Filters"
