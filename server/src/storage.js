@@ -72,6 +72,7 @@ export async function saveSnapshot(payload) {
     files.push({
       kind: normalizeKind(inputFile.kind),
       relativePath,
+      sourceRoot: String(inputFile.sourceRoot ?? ""),
       size: content.length,
       mtimeMs: Number(inputFile.mtimeMs ?? 0),
       sha256: sha256(content),

@@ -33,9 +33,10 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.8"
+PLUGIN_VERSION = "0.1.9"
 SETTINGS_VERSION = 3
 DEFAULT_SERVER_URL = "http://185.201.28.103"
+LAST_EPOCH_STEAM_APP_ID = "899770"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
 PLUGIN_ARCHIVE_DIR = "last-epoch-companion"
@@ -44,6 +45,19 @@ DEFAULT_GAME_ROOT = Path(decky.DECKY_USER_HOME) / ".config" / "unity3d" / "Eleve
 DEFAULT_SAVES_ROOT = DEFAULT_GAME_ROOT / "Saves"
 DEFAULT_FILTERS_ROOT = DEFAULT_GAME_ROOT / "Filters"
 DEFAULT_SETUP_FILE = Path(decky.DECKY_USER_HOME) / "Downloads" / "last-epoch-companion-settings.json"
+PROTON_GAME_ROOT_SUFFIX = (
+    Path("steamapps")
+    / "compatdata"
+    / LAST_EPOCH_STEAM_APP_ID
+    / "pfx"
+    / "drive_c"
+    / "users"
+    / "steamuser"
+    / "AppData"
+    / "LocalLow"
+    / "Eleventh Hour Games"
+    / "Last Epoch"
+)
 MAX_FILE_BYTES = 25 * 1024 * 1024
 
 PLUGIN_SETTINGS_DIR = Path(
@@ -295,13 +309,12 @@ def _check_pairing(settings):
 
 
 def _scan_local(settings):
-    saves_root = Path(settings["savesRoot"]).expanduser()
-    filters_root = Path(settings["filtersRoot"]).expanduser()
-    save_files = list(_iter_files(saves_root, "save"))
-    filter_files = list(_iter_files(filters_root, "filter"))
+    roots = _discover_scan_roots(settings)
+    save_files = list(_iter_files_from_roots(roots["saveRoots"], "save"))
+    filter_files = list(_iter_files_from_roots(roots["filterRoots"], "filter"))
     return {
-        "savesRoot": str(saves_root),
-        "filtersRoot": str(filters_root),
+        "saveRoots": [str(root) for root in roots["saveRoots"]],
+        "filterRoots": [str(root) for root in roots["filterRoots"]],
         "saveFiles": len(save_files),
         "filterFiles": len(filter_files),
         "totalBytes": sum(file["size"] for file in save_files + filter_files),
@@ -309,18 +322,17 @@ def _scan_local(settings):
 
 
 def _send_snapshot(settings):
+    roots = _discover_scan_roots(settings)
     files = []
-    saves_root = Path(settings["savesRoot"]).expanduser()
-    filters_root = Path(settings["filtersRoot"]).expanduser()
-    files.extend(_read_payload_files(saves_root, "save"))
-    files.extend(_read_payload_files(filters_root, "filter"))
+    files.extend(_read_payload_files_from_roots(roots["saveRoots"], "save"))
+    files.extend(_read_payload_files_from_roots(roots["filterRoots"], "filter"))
 
     payload = {
         "deckName": socket.gethostname(),
         "pluginVersion": PLUGIN_VERSION,
         "createdAt": _utc_now_iso(),
-        "savesRoot": str(saves_root),
-        "filtersRoot": str(filters_root),
+        "savesRoot": "; ".join(str(root) for root in roots["saveRoots"]),
+        "filtersRoot": "; ".join(str(root) for root in roots["filterRoots"]),
         "files": files,
     }
     request = urllib.request.Request(
@@ -459,22 +471,148 @@ def _version_tuple(value):
     return tuple(parts[:3])
 
 
-def _read_payload_files(root, kind):
+def _discover_scan_roots(settings):
+    return {
+        "saveRoots": _discover_kind_roots(settings, "save"),
+        "filterRoots": _discover_kind_roots(settings, "filter"),
+    }
+
+
+def _discover_kind_roots(settings, kind):
+    configured = settings.get("savesRoot") if kind == "save" else settings.get("filtersRoot")
+    child = "Saves" if kind == "save" else "Filters"
+    candidates = []
+    if configured:
+        candidates.append(Path(configured).expanduser())
+    for game_root in _game_root_candidates():
+        candidates.append(game_root / child)
+    return _existing_unique_dirs(candidates)
+
+
+def _game_root_candidates():
+    home = Path(decky.DECKY_USER_HOME).expanduser()
+    candidates = [DEFAULT_GAME_ROOT]
+    for steam_library in _steam_library_candidates(home):
+        candidates.append(steam_library / PROTON_GAME_ROOT_SUFFIX)
+    return candidates
+
+
+def _steam_library_candidates(home):
+    candidates = [
+        home / ".local" / "share" / "Steam",
+        home / ".steam" / "steam",
+        home / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "Steam",
+        Path("/run/media/mmcblk0p1"),
+    ]
+
+    for steam_root in list(candidates):
+        candidates.extend(_read_steam_library_paths(steam_root))
+
+    for media_root in [Path("/run/media/deck"), Path("/run/media")]:
+        if not media_root.exists() or not media_root.is_dir():
+            continue
+        try:
+            mounts = list(media_root.iterdir())
+        except Exception:
+            continue
+        for mount in mounts:
+            if mount.is_dir():
+                candidates.extend([mount, mount / "SteamLibrary"])
+
+    return _unique_paths(candidates)
+
+
+def _read_steam_library_paths(steam_root):
+    library_file = steam_root / "steamapps" / "libraryfolders.vdf"
+    try:
+        text = library_file.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    paths = []
+    for line in text.splitlines():
+        if '"path"' not in line:
+            continue
+        parts = line.split('"')
+        if len(parts) >= 4:
+            paths.append(Path(parts[3].replace("\\\\", "/")))
+    return paths
+
+
+def _existing_unique_dirs(paths):
+    existing = []
+    seen = set()
+    for path in paths:
+        try:
+            candidate = Path(path).expanduser()
+        except Exception:
+            continue
+        if not candidate.exists() or not candidate.is_dir():
+            continue
+        key = _path_key(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        existing.append(candidate)
+    return existing
+
+
+def _unique_paths(paths):
+    unique = []
+    seen = set()
+    for path in paths:
+        key = str(Path(path).expanduser())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(Path(path).expanduser())
+    return unique
+
+
+def _path_key(path):
+    try:
+        return str(path.resolve())
+    except Exception:
+        return str(path.absolute())
+
+
+def _iter_files_from_roots(roots, kind):
+    for root in roots:
+        yield from _iter_files(root, kind)
+
+
+def _read_payload_files_from_roots(roots, kind):
     files = []
-    for meta in _iter_files(root, kind):
-        file_path = Path(meta["absolutePath"])
-        content = file_path.read_bytes()
-        files.append(
-            {
-                "kind": kind,
-                "relativePath": meta["relativePath"],
-                "size": meta["size"],
-                "mtimeMs": meta["mtimeMs"],
-                "sha256": hashlib.sha256(content).hexdigest(),
-                "contentBase64": base64.b64encode(content).decode("ascii"),
-            }
-        )
+    use_prefix = len(roots) > 1
+    for index, root in enumerate(roots):
+        label = _root_label(root, kind, index)
+        for meta in _iter_files(root, kind):
+            file_path = Path(meta["absolutePath"])
+            content = file_path.read_bytes()
+            relative_path = f"{label}/{meta['relativePath']}" if use_prefix else meta["relativePath"]
+            files.append(
+                {
+                    "kind": kind,
+                    "relativePath": relative_path,
+                    "sourceRoot": str(root),
+                    "size": meta["size"],
+                    "mtimeMs": meta["mtimeMs"],
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                    "contentBase64": base64.b64encode(content).decode("ascii"),
+                }
+            )
     return files
+
+
+def _root_label(root, kind, index):
+    text = Path(root).as_posix().lower()
+    if f"compatdata/{LAST_EPOCH_STEAM_APP_ID}" in text:
+        source = "proton"
+    elif ".config/unity3d" in text:
+        source = "linux"
+    else:
+        source = f"root{index + 1}"
+    return _safe_file_name(f"{source}-{kind}")
 
 
 def _iter_files(root, kind):

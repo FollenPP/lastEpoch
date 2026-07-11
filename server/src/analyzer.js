@@ -82,6 +82,7 @@ export function analyzeFile(file, buffer) {
   return {
     kind: file.kind,
     relativePath: file.relativePath,
+    sourceRoot: file.sourceRoot ?? "",
     name: path.basename(file.relativePath),
     size: file.size,
     mtimeMs: file.mtimeMs,
@@ -199,7 +200,7 @@ function buildRecommendations(context) {
     recommendations.push({
       severity: "warning",
       title: "Snapshot is empty",
-      body: "Decky did not send any files. Check the Last Epoch save and filter paths in plugin settings.",
+      body: "Decky did not send any files. The plugin did not find Last Epoch files in the detected Proton, Steam library, SD card, or native Linux paths.",
     });
     return recommendations;
   }

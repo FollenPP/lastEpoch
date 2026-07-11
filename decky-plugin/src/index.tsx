@@ -17,6 +17,8 @@ type Settings = {
 };
 
 type ScanResult = {
+  saveRoots: string[];
+  filterRoots: string[];
   saveFiles: number;
   filterFiles: number;
   totalBytes: number;
@@ -47,7 +49,6 @@ type UpdateInfo = {
 };
 
 const getSettings = callable<[], Settings>("get_settings");
-const saveSettings = callable<[settings: Settings], Settings>("save_settings");
 const resetServerUrl = callable<[], Settings>("reset_server_url");
 const pingServer = callable<[], { ok: boolean }>("ping_server");
 const startPairing = callable<[], { id: string; code: string; status: string; expiresAt: string }>("start_pairing");
@@ -62,13 +63,13 @@ const backendSelfTest = callable<[], { ok: boolean; version: string; serverUrl: 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
 const defaultServerUrl = "http://185.201.28.103";
-const pluginVersion = "0.1.8";
+const pluginVersion = "0.1.9";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({
-    settingsVersion: 2,
+    settingsVersion: 3,
     serverUrl: defaultServerUrl,
-    serverUrlSource: "default",
+    serverUrlSource: "hardcoded",
     pairingToken: "",
     savesRoot: defaultSavesRoot,
     filtersRoot: defaultFiltersRoot,
@@ -144,7 +145,8 @@ function Content() {
     setStatus("Scanning Last Epoch files...");
     try {
       const result = await scanLocal();
-      setStatus(`Found ${result.saveFiles} save file(s), ${result.filterFiles} filter file(s), ${formatBytes(result.totalBytes)} total.`);
+      const rootSummary = `${result.saveRoots.length} save root(s), ${result.filterRoots.length} filter root(s)`;
+      setStatus(`Found ${result.saveFiles} save file(s), ${result.filterFiles} filter file(s), ${formatBytes(result.totalBytes)} total across ${rootSummary}.`);
     } catch (error) {
       showError(error);
     } finally {
@@ -159,9 +161,13 @@ function Content() {
       const result = await sendSnapshot();
       const nextSettings = { ...settings, lastSnapshotId: result.snapshot.id };
       setSettings(nextSettings);
-      setStatus(
-        `Sent ${result.snapshot.fileCount} file(s). Characters: ${result.analysis.summary.characterFiles}, stash: ${result.analysis.summary.stashFiles}, filters: ${result.analysis.summary.filterFiles}.`,
-      );
+      if (result.snapshot.fileCount === 0) {
+        setStatus("Sent 0 files. Scan found no Last Epoch files in Proton/native paths.");
+      } else {
+        setStatus(
+          `Sent ${result.snapshot.fileCount} file(s). Characters: ${result.analysis.summary.characterFiles}, stash: ${result.analysis.summary.stashFiles}, filters: ${result.analysis.summary.filterFiles}.`,
+        );
+      }
       toaster.toast({
         title: "Last Epoch Companion",
         body: "Snapshot sent to laptop.",
@@ -187,24 +193,6 @@ function Content() {
         title: "Last Epoch Companion",
         body: "Review filter saved.",
       });
-    } catch (error) {
-      showError(error);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resetPaths = async () => {
-    setBusy(true);
-    setStatus("Resetting paths...");
-    try {
-      const saved = await saveSettings({
-        ...settings,
-        savesRoot: defaultSavesRoot,
-        filtersRoot: defaultFiltersRoot,
-      });
-      setSettings(saved);
-      setStatus("Last Epoch paths reset.");
     } catch (error) {
       showError(error);
     } finally {
@@ -330,13 +318,7 @@ function Content() {
 
       <PanelSection title="Snapshot">
         <PanelSectionRow>
-          <Field label="Saves" description={shortPath(settings.savesRoot)} focusable={false} />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <Field label="Filters" description={shortPath(settings.filtersRoot)} focusable={false} />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <ActionField label="Reset Game Paths" description="Use default Last Epoch offline paths" disabled={busy} onAction={resetPaths} />
+          <Field label="File scan" description="Auto-detect Proton, SD card, and native paths" focusable={false} />
         </PanelSectionRow>
         <PanelSectionRow>
           <ActionField label="Scan Local Files" description="Count saves and filters" disabled={busy} onAction={scan} />
@@ -411,12 +393,6 @@ export default definePlugin(() => ({
   content: <Content />,
   icon: <FaCloudUploadAlt />,
 }));
-
-function shortPath(value: string) {
-  return value
-    .replace("/home/deck/", "~/")
-    .replace("/.config/unity3d/Eleventh Hour Games/Last Epoch/", "/Last Epoch/");
-}
 
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
