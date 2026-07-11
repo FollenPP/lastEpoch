@@ -68,6 +68,9 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
             formatVersion: 3,
             dataLength: 12,
             fingerprint: "abc123def4567890abcd",
+            locationType: "stash",
+            equipmentSlot: "helmet",
+            itemKind: "helmet",
             decoderStatus: "raw-bytes",
             score: 58,
             decoded: {
@@ -80,6 +83,37 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
                 quantity: 1,
                 containerId: 3,
                 inventoryPosition: "1, 2",
+                directFields: {},
+              },
+            },
+          },
+          {
+            source: "Saves/1CHARACTERSLOT_BETA_0",
+            sourceType: "character",
+            sourceName: "AdletM",
+            quantity: 1,
+            containerId: null,
+            inventoryPosition: "",
+            formatVersion: 3,
+            dataLength: 8,
+            fingerprint: "equipped1234567890aa",
+            locationType: "equipped",
+            equipmentSlot: "helmet",
+            itemKind: "helmet",
+            recordPath: "equippedItems.helmet",
+            decoderStatus: "raw-bytes",
+            score: 40,
+            decoded: {
+              fingerprint: "equipped1234567890aa",
+              decoderStatus: "raw-bytes",
+              byteLength: 8,
+              previewHex: "01 02 03 04",
+              checksum: 10,
+              metadata: {
+                locationType: "equipped",
+                equipmentSlot: "helmet",
+                itemKind: "helmet",
+                recordPath: "equippedItems.helmet",
                 directFields: {},
               },
             },
@@ -102,10 +136,14 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
   assert.equal(result.model.knowledge.archetype.primary, "hit-caster");
   assert.ok(result.model.knowledge.tags.damage.includes("fire"));
   assert.ok(result.metrics.knowledgeReadiness > 0);
+  assert.equal(result.model.characters[0].equipment.equippedItems.length, 1);
+  assert.equal(result.model.characters[0].equipment.slots.helmet.fingerprint, "equipped1234567890aa");
   assert.equal(result.model.stash.upgradeCandidates.length, 1);
   assert.equal(result.model.stash.itemCards[0].fingerprint, "abc123def4567890abcd");
   assert.equal(result.model.stash.itemCards[0].decoderStatus, "raw-bytes");
   assert.equal(result.model.stash.upgradeCandidates[0].score, 58);
+  assert.equal(result.model.stash.upgradeCandidates[0].comparison.status, "comparable-slot");
+  assert.equal(result.model.stash.upgradeCandidates[0].comparison.scoreDelta, 18);
   assert.equal(result.metrics.dataQuality.hasStash, true);
   assert.ok(result.issues.some((issue) => issue.id === "unspent-passives"));
   assert.ok(result.issues.some((issue) => issue.id === "survivability-risk"));

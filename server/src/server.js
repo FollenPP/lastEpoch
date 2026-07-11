@@ -189,6 +189,22 @@ async function route(req, res) {
     return;
   }
 
+  const v1EquipmentMatch = url.pathname.match(/^\/api\/v1\/equipment\/([a-zA-Z0-9_-]+)$/);
+  if (method === "GET" && v1EquipmentMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1EquipmentMatch[1]);
+    const activeCharacter =
+      buildAnalysis.model.characters.find((character) => character.id === buildAnalysis.model.activeCharacterId) ??
+      buildAnalysis.model.characters[0] ??
+      null;
+    sendJson(res, 200, {
+      activeCharacterId: activeCharacter?.id ?? null,
+      equipment: activeCharacter?.equipment ?? null,
+      apiVersion: "v1",
+    });
+    return;
+  }
+
   const v1AnalysisPartMatch = url.pathname.match(/^\/api\/v1\/analyses\/([a-zA-Z0-9_-]+)\/(issues|metrics|breakdown|recommendations)$/);
   if (method === "GET" && v1AnalysisPartMatch) {
     if (!hasAccess(req)) return unauthorized(res);

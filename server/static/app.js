@@ -241,6 +241,7 @@ function renderBuildAnalysis(buildAnalysis) {
       ${metric("Game data", `${buildAnalysis.metrics?.knowledgeReadiness ?? 0}%`)}
     </div>
     ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
+    ${renderEquipmentModel(activeCharacter(buildAnalysis.model))}
     <div class="analysisColumns">
       <div>
         <h3>Проблемы</h3>
@@ -259,6 +260,54 @@ function renderBuildAnalysis(buildAnalysis) {
       <h3>Кандидаты из stash</h3>
       ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
     </div>
+  `;
+}
+
+function activeCharacter(model) {
+  if (!model) return null;
+  return model.characters?.find((character) => character.id === model.activeCharacterId) ?? model.characters?.[0] ?? null;
+}
+
+function renderEquipmentModel(character) {
+  const equipment = character?.equipment;
+  if (!equipment) {
+    return `<div class="section"><h3>Экипировка</h3><p class="muted">Экипировка появится после распознавания active character.</p></div>`;
+  }
+  const equippedItems = equipment.equippedItems ?? [];
+  const inventoryItems = equipment.inventoryItems ?? [];
+  return `
+    <div class="section">
+      <h3>Экипировка</h3>
+      <div class="summaryGrid">
+        ${metric("Надето", equippedItems.length)}
+        ${metric("В персонаже", equipment.rawItemRecords ?? 0)}
+        ${metric("Инвентарь", inventoryItems.length)}
+        ${metric("Статус", equipmentStatusLabel(equipment.status))}
+      </div>
+      ${
+        equippedItems.length
+          ? `<div class="itemGrid">${equippedItems.slice(0, 12).map(renderEquipmentItem).join("")}</div>`
+          : `<p class="muted">Предметные записи персонажа найдены не во всех сейвах одинаково. Если список пустой, следующий шаг - калибровка по реальному sample save.</p>`
+      }
+    </div>
+  `;
+}
+
+function renderEquipmentItem(item) {
+  return `
+    <article class="itemCard">
+      <div class="cardTop">
+        <h3>${escapeHtml(item.equipmentSlot || item.itemKind || "slot unknown")}</h3>
+        <span class="pill info">score ${displayValue(item.score)}</span>
+      </div>
+      <p class="muted">${escapeHtml(item.sourceName || item.source || item.id)}</p>
+      <div class="kvGrid compact">
+        ${kv("Location", locationTypeLabel(item.locationType))}
+        ${kv("Fingerprint", displayValue(item.fingerprint))}
+        ${kv("Data", displayValue(item.dataLength))}
+        ${kv("Path", displayValue(item.recordPath))}
+      </div>
+    </article>
   `;
 }
 
@@ -375,6 +424,9 @@ function renderUpgradeCandidates(candidates) {
               <div class="kvGrid compact">
                 ${kv("Источник", sourceTypeLabel(item.sourceType))}
                 ${kv("Позиция", escapeHtml(item.inventoryPosition || "не найдена"))}
+                ${kv("Slot", displayValue(item.comparison?.slot ?? item.equipmentSlot ?? item.itemKind))}
+                ${kv("Compare", comparisonStatusLabel(item.comparison?.status))}
+                ${kv("Delta", displayValue(item.comparison?.scoreDelta))}
                 ${kv("Data", displayValue(item.dataLength))}
                 ${kv("Fingerprint", displayValue(item.fingerprint))}
                 ${kv("Status", decoderStatusLabel(item.decoderStatus))}
@@ -511,9 +563,12 @@ function renderItemCards(items) {
                 ${kv("Версия", displayValue(card.formatVersion))}
                 ${kv("Data", displayValue(card.dataLength))}
                 ${kv("Score", displayValue(card.score))}
+                ${kv("Location", locationTypeLabel(card.locationType))}
+                ${kv("Slot", displayValue(card.equipmentSlot ?? card.itemKind))}
                 ${kv("Fingerprint", displayValue(card.fingerprint))}
                 ${kv("Status", decoderStatusLabel(card.decoderStatus))}
                 ${kv("Hex", displayValue(card.decoded?.previewHex))}
+                ${kv("Path", displayValue(card.recordPath))}
                 ${kv("Checksum", displayValue(card.decoded?.checksum))}
               </div>
             </article>
@@ -713,6 +768,40 @@ function decoderStatusLabel(value) {
       "metadata-only": "metadata only",
       empty: "empty",
       unknown: "unknown",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function locationTypeLabel(value) {
+  return (
+    {
+      equipped: "надето",
+      inventory: "инвентарь",
+      character: "персонаж",
+      stash: "сундук",
+      idol: "идол",
+      unknown: "unknown",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function comparisonStatusLabel(value) {
+  return (
+    {
+      "comparable-slot": "slot match",
+      "no-slot-match": "no slot match",
+      "no-equipped-baseline": "no baseline",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function equipmentStatusLabel(value) {
+  return (
+    {
+      "equipment-detected": "найдена",
+      "character-items-without-slots": "без слотов",
+      "no-character-item-records": "нет записей",
+      "pending-item-decoder": "ожидает decoder",
     }[value] ?? displayValue(value)
   );
 }

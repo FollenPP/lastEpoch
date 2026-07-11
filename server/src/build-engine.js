@@ -33,10 +33,12 @@ export function buildAnalyzerSnapshot(snapshot, analysis) {
 
 export function normalizeBuildModel(snapshot, analysis) {
   const game = analysis?.game ?? {};
-  const characters = (game.characters ?? []).map((character, index) => normalizeCharacter(character, snapshot, index));
+  const baseCharacters = (game.characters ?? []).map((character, index) => normalizeCharacter(character, snapshot, index));
   const stash = normalizeStash(game.stash ?? {}, game.items ?? {});
   const filters = normalizeFilters(game.filters ?? []);
+  const characters = attachEquipmentToCharacters(baseCharacters, stash.itemCards);
   const activeCharacter = chooseActiveCharacter(characters);
+  stash.upgradeCandidates = buildUpgradeCandidates(stash.itemCards, activeCharacter);
   const knowledge = buildKnowledgeProfile(activeCharacter, { stash, filters });
 
   return {
@@ -97,6 +99,7 @@ export function calculateMetrics(model) {
       hasSkillTrees: Boolean(active?.skills.hasData),
       hasGameData: model.gameData?.status === "starter",
       hasArchetype: Boolean(model.knowledge?.archetype?.primary && model.knowledge.archetype.primary !== "unknown"),
+      hasEquipment: (active?.equipment?.equippedItems?.length ?? 0) > 0,
     },
   };
 }
@@ -202,6 +205,18 @@ export function detectIssues(model, metrics) {
         "Предметы пока не расшифрованы",
         "itemData найден, но без базы предметов нельзя назвать affix/base и точно посчитать апгрейд.",
         70,
+      ),
+    );
+  }
+
+  if (metrics.dataQuality.hasItems && !metrics.dataQuality.hasEquipment) {
+    issues.push(
+      issue(
+        "equipment-baseline-missing",
+        "info",
+        "Надетая экипировка пока не отделена от инвентаря",
+        "Предметные записи найдены, но система не смогла уверенно определить equipped slots. Сравнение stash-кандидатов будет без baseline-предмета.",
+        57,
       ),
     );
   }
@@ -432,6 +447,9 @@ function normalizeCharacter(character, snapshot, index) {
     equipment: {
       decodedItems: 0,
       rawItemRecords: 0,
+      equippedItems: [],
+      inventoryItems: [],
+      slots: {},
       status: "pending-item-decoder",
     },
     advice: character.advice ?? [],
@@ -459,16 +477,6 @@ function normalizeStash(stash, items) {
   }));
   const rawCards = items.cards ?? [];
   const itemCards = rawCards.map((item, index) => normalizeItemCard(item, index));
-  const upgradeCandidates = itemCards
-    .filter((item) => item.sourceType === "stash" || item.sourceType === "stash-tab")
-    .map((item) => ({
-      ...item,
-      score: estimateItemScore(item),
-      confidence: "low",
-      reason: "Кандидат найден по itemData записи; точный affix/base score появится после декодера.",
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
   const totalItemRecords = numberValue(stash.totalItemRecords);
   const itemRecordCount =
     totalItemRecords && totalItemRecords > 0 ? totalItemRecords : (numberValue(items.totalRecords) ?? itemCards.length);
@@ -477,13 +485,127 @@ function normalizeStash(stash, items) {
     files,
     tabs,
     itemCards,
-    upgradeCandidates,
+    upgradeCandidates: buildUpgradeCandidates(itemCards, null),
     fileCount: files.length,
     tabCount: tabs.length,
     totalGold: numberValue(stash.totalGold) ?? 0,
     itemRecordCount,
     namedTabs: stash.namedTabs ?? [],
   };
+}
+
+function attachEquipmentToCharacters(characters, itemCards) {
+  return characters.map((character) => ({
+    ...character,
+    equipment: buildEquipmentModel(character, itemCards),
+  }));
+}
+
+function buildEquipmentModel(character, itemCards) {
+  const relatedItems = itemCards.filter((item) => item.sourceType === "character" && item.source === character.sourceFile);
+  const equippedItems = relatedItems.filter((item) => item.locationType === "equipped" || Boolean(item.equipmentSlot));
+  const inventoryItems = relatedItems.filter((item) => item.locationType === "inventory" || item.locationType === "character");
+  const slots = {};
+  for (const item of equippedItems) {
+    const slot = item.equipmentSlot ?? item.itemKind ?? "unknown";
+    if (!slots[slot] || estimateItemScore(item) > estimateItemScore(slots[slot])) {
+      slots[slot] = item;
+    }
+  }
+
+  return {
+    decodedItems: equippedItems.filter((item) => item.decoderStatus === "raw-bytes").length,
+    rawItemRecords: relatedItems.length,
+    equippedItems,
+    inventoryItems,
+    slots,
+    status:
+      equippedItems.length > 0
+        ? "equipment-detected"
+        : relatedItems.length > 0
+          ? "character-items-without-slots"
+          : "no-character-item-records",
+  };
+}
+
+function buildUpgradeCandidates(itemCards, activeCharacter) {
+  return itemCards
+    .filter((item) => item.sourceType === "stash" || item.sourceType === "stash-tab")
+    .map((item) => {
+      const comparison = compareWithEquipped(item, activeCharacter?.equipment);
+      return {
+        ...item,
+        score: estimateItemScore(item),
+        confidence: comparison.status === "comparable-slot" ? "medium-low" : "low",
+        comparison,
+        reason: comparison.reason,
+      };
+    })
+    .sort((a, b) => {
+      const deltaA = numberValue(a.comparison?.scoreDelta) ?? -999;
+      const deltaB = numberValue(b.comparison?.scoreDelta) ?? -999;
+      if (deltaA !== deltaB) return deltaB - deltaA;
+      return b.score - a.score;
+    })
+    .slice(0, 20);
+}
+
+function compareWithEquipped(candidate, equipment) {
+  const candidateScore = estimateItemScore(candidate);
+  const baseline = findComparableEquippedItem(candidate, equipment);
+  const slot = candidate.equipmentSlot ?? candidate.itemKind ?? baseline?.equipmentSlot ?? baseline?.itemKind ?? null;
+
+  if (!equipment || (equipment.equippedItems ?? []).length === 0) {
+    return {
+      status: "no-equipped-baseline",
+      slot,
+      baselineItemId: null,
+      baselineScore: null,
+      candidateScore,
+      scoreDelta: null,
+      reason: "Кандидат из stash найден, но baseline экипировки пока не распознан.",
+    };
+  }
+
+  if (!baseline) {
+    return {
+      status: "no-slot-match",
+      slot,
+      baselineItemId: null,
+      baselineScore: null,
+      candidateScore,
+      scoreDelta: null,
+      reason: "Кандидат из stash найден, но слот не удалось сопоставить с надетым предметом.",
+    };
+  }
+
+  const baselineScore = estimateItemScore(baseline);
+  const scoreDelta = candidateScore - baselineScore;
+  return {
+    status: "comparable-slot",
+    slot,
+    baselineItemId: baseline.id,
+    baselineFingerprint: baseline.fingerprint,
+    baselineScore,
+    candidateScore,
+    scoreDelta,
+    reason:
+      scoreDelta >= 0
+        ? `Кандидат для слота ${slot ?? "unknown"} имеет raw score выше baseline на ${scoreDelta}.`
+        : `Кандидат для слота ${slot ?? "unknown"} ниже baseline по raw score на ${Math.abs(scoreDelta)}; проверить вручную.`,
+  };
+}
+
+function findComparableEquippedItem(candidate, equipment) {
+  const equippedItems = equipment?.equippedItems ?? [];
+  if (!equippedItems.length) return null;
+  const candidateSlot = candidate.equipmentSlot ?? null;
+  const candidateKind = candidate.itemKind ?? null;
+  return (
+    equippedItems.find((item) => candidateSlot && item.equipmentSlot === candidateSlot) ??
+    equippedItems.find((item) => candidateKind && item.itemKind === candidateKind) ??
+    null
+  );
 }
 
 function normalizeFilters(filters) {
@@ -514,6 +636,10 @@ function normalizeItemCard(item, index) {
     formatVersion: numberValue(item.formatVersion),
     dataLength,
     fingerprint,
+    recordPath: item.recordPath ?? decoded?.metadata?.recordPath ?? "",
+    locationType: item.locationType ?? decoded?.metadata?.locationType ?? "unknown",
+    equipmentSlot: item.equipmentSlot ?? decoded?.metadata?.equipmentSlot ?? null,
+    itemKind: item.itemKind ?? decoded?.metadata?.itemKind ?? null,
     decoderStatus: item.decoderStatus ?? decoded?.decoderStatus ?? "unknown",
     score,
     decoded,
@@ -528,6 +654,7 @@ function buildBreakdown(model, metrics, issues) {
         characters: model.characters.length,
         stashTabs: model.stash.tabs.length,
         itemRecords: model.stash.itemRecordCount,
+        equippedItems: model.characters.find((character) => character.id === model.activeCharacterId)?.equipment?.equippedItems?.length ?? 0,
         filters: model.filters.length,
         parserCoverage: model.parser.coverage,
       },
@@ -547,6 +674,7 @@ function buildBreakdown(model, metrics, issues) {
       "parseCompleteness = weighted character/stash/item/filter/parser coverage",
       "readiness scores are heuristic until game-data formulas are implemented",
       "stash candidate score = raw item byte signal + metadata completeness",
+      "equipment comparison = stash raw score minus equipped raw score for matched slot",
     ],
   };
 }

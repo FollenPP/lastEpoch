@@ -442,19 +442,24 @@ function buildItemCards(files) {
   for (const file of files) {
     if (!file[PARSED_DATA] || !file.gameSummary) continue;
     let recordIndex = 0;
-    collectItemRecords(file[PARSED_DATA], (record) => {
+    collectItemRecords(file[PARSED_DATA], (record, meta) => {
       const sourceName = file.gameSummary.displayName ?? file.gameSummary.name ?? file.gameSummary.stashName ?? file.name;
       const decoded = decodeItemRecord(record, {
         source: file.relativePath,
         sourceType: file.gameSummary.type,
         sourceName,
         recordIndex,
+        recordPath: meta.path,
       });
       cards.push({
         id: decoded.id,
         source: file.relativePath,
         sourceType: file.gameSummary.type,
         sourceName,
+        recordPath: decoded.metadata.recordPath,
+        locationType: decoded.metadata.locationType,
+        equipmentSlot: decoded.metadata.equipmentSlot,
+        itemKind: decoded.metadata.itemKind,
         quantity: decoded.metadata.quantity,
         containerId: decoded.metadata.containerId,
         inventoryPosition: decoded.metadata.inventoryPosition,
@@ -473,14 +478,14 @@ function buildItemCards(files) {
 
 function collectItemRecords(value, visitor) {
   const nestedItemDataObjects = new WeakSet();
-  walk(value, (node) => {
+  walk(value, (node, path) => {
     if (!isObject(node)) return;
     if (isObject(node.itemData)) nestedItemDataObjects.add(node.itemData);
     if (nestedItemDataObjects.has(node)) return;
     const hasNestedItemData = isObject(node.itemData) || Array.isArray(node.itemData?.data);
     const hasDirectItemData = Array.isArray(node.data) && hasItemRecordMetadata(node);
     if (hasNestedItemData || hasDirectItemData) {
-      visitor(node);
+      visitor(node, { path });
     }
   });
 }
@@ -589,12 +594,12 @@ function countDeepKey(value, key) {
   return count;
 }
 
-function walk(value, visitor) {
-  visitor(value);
+function walk(value, visitor, currentPath = []) {
+  visitor(value, currentPath);
   if (Array.isArray(value)) {
-    for (const item of value) walk(item, visitor);
+    value.forEach((item, index) => walk(item, visitor, currentPath.concat(index)));
   } else if (isObject(value)) {
-    for (const item of Object.values(value)) walk(item, visitor);
+    for (const [key, item] of Object.entries(value)) walk(item, visitor, currentPath.concat(key));
   }
 }
 

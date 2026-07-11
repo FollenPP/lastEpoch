@@ -44,6 +44,23 @@ test("decodeItemRecord handles metadata-only records", () => {
   assert.ok(estimateRawItemScore(decoded) > 0);
 });
 
+test("decodeItemRecord infers equipped location and slot from record path", () => {
+  const decoded = decodeItemRecord(
+    { itemData: { data: [1, 2, 3, 4] }, quantity: 1 },
+    {
+      source: "Saves/1CHARACTERSLOT_BETA_0",
+      sourceType: "character",
+      recordPath: ["savedCharacter", "equippedItems", "helmet"],
+    },
+  );
+
+  assert.equal(decoded.metadata.locationType, "equipped");
+  assert.equal(decoded.metadata.equipmentSlot, "helmet");
+  assert.equal(decoded.metadata.itemKind, "helmet");
+  assert.equal(decoded.metadata.recordPath, "savedCharacter.equippedItems.helmet");
+  assert.ok(decoded.labels.includes("path-aware"));
+});
+
 test("normalizeBytes keeps values inside unsigned byte range", () => {
   assert.deepEqual(normalizeBytes([0, 255, 256, -1, "7", "bad", null]), [0, 255, 0, 255, 7]);
 });

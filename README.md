@@ -133,6 +133,7 @@ POST /api/v1/snapshots/{snapshotId}/analyses
 GET  /api/v1/analyses/{snapshotId}
 POST /api/v1/analyses/{snapshotId}/recalculate
 GET  /api/v1/analyses/{snapshotId}/profile
+GET  /api/v1/equipment/{snapshotId}
 GET  /api/v1/analyses/{snapshotId}/issues
 GET  /api/v1/analyses/{snapshotId}/metrics
 GET  /api/v1/analyses/{snapshotId}/recommendations
@@ -145,7 +146,7 @@ POST /api/v1/stashes/{snapshotId}/items/{itemId}/simulate
 POST /api/v1/loot-filters/generate
 ```
 
-These endpoints currently provide a normalized build model, starter game-data profile, heuristic metrics, issues, recommendations, a development plan, raw item fingerprints, and low-confidence stash upgrade candidates. Exact item base/affix decoding, passive node names, skill-tree simulation, and exact DPS/EHP calculations are intentionally separate next modules.
+These endpoints currently provide a normalized build model, starter game-data profile, heuristic metrics, issues, recommendations, a development plan, raw item fingerprints, inferred equipment slots, and low-confidence stash upgrade candidates with raw score comparison when a slot baseline is available. Exact item base/affix decoding, passive node names, skill-tree simulation, and exact DPS/EHP calculations are intentionally separate next modules.
 
 Headers:
 
