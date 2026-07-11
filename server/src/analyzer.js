@@ -296,6 +296,10 @@ function buildCharacterSummary(file, data, strings, text) {
       ? Object.values(source.savedSkillTrees)
       : [];
   const abilityBar = source.abilityBar ?? {};
+  const passiveNodeIds = scalarCollectionValues(passiveTree.nodeIDs ?? passiveTree.nodeIds ?? passiveTree.nodesTaken);
+  const passiveNodesTaken = scalarCollectionValues(passiveTree.nodesTaken);
+  const passiveNodePoints = scalarCollectionValues(passiveTree.nodePoints);
+  const abilitySlots = collectAbilitySlots(abilityBar, strings);
 
   const summary = {
     type: "character",
@@ -310,14 +314,19 @@ function buildCharacterSummary(file, data, strings, text) {
     passiveTree: {
       treeId: numberValue(passiveTree.treeID),
       nodesTaken: countCollection(passiveTree.nodesTaken),
-      nodeIds: countCollection(passiveTree.nodeIDs),
+      nodeIds: countCollection(passiveTree.nodeIDs ?? passiveTree.nodeIds),
       nodePoints: countCollection(passiveTree.nodePoints),
       unspentPoints: numberValue(passiveTree.unspentPoints),
+      nodeIdsList: passiveNodeIds.slice(0, 160),
+      nodePointsList: passiveNodePoints.slice(0, 160),
+      nodesTakenList: passiveNodesTaken.slice(0, 160),
     },
     skills: {
       specializedTrees: skillTrees.length,
       abilityBarSlots: countFilledValues(abilityBar),
-      abilityCodes: collectAbilityCodes(abilityBar, strings),
+      abilityCodes: abilitySlots.length ? abilitySlots.map((slot) => slot.code).slice(0, 8) : collectAbilityCodes(abilityBar, strings),
+      abilitySlots,
+      trees: skillTrees.map((tree, index) => summarizeSkillTree(tree, index)).slice(0, 8),
     },
     quests: {
       savedQuests: countCollection(source.savedQuests),
@@ -581,6 +590,29 @@ function countCollection(value) {
   return 0;
 }
 
+function collectionValues(value) {
+  if (Array.isArray(value)) return value;
+  if (isObject(value)) return Object.values(value);
+  return [];
+}
+
+function scalarCollectionValues(value) {
+  return collectionValues(value)
+    .map((item) => {
+      if (typeof item === "number" || typeof item === "boolean") return item;
+      if (typeof item === "string" && item.trim()) return item.trim();
+      return null;
+    })
+    .filter((item) => item !== null);
+}
+
+function sumNumericCollection(value) {
+  return collectionValues(value).reduce((sum, item) => {
+    const number = numberValue(item);
+    return sum + (number ?? 0);
+  }, 0);
+}
+
 function countFilledValues(value) {
   if (!isObject(value) && !Array.isArray(value)) return 0;
   return Object.values(value).filter((item) => item !== null && item !== undefined && item !== "" && item !== 0).length;
@@ -624,6 +656,7 @@ function collectAbilityCodes(abilityBar, strings) {
   if (isObject(abilityBar) || Array.isArray(abilityBar)) {
     for (const value of Object.values(abilityBar)) {
       if (typeof value === "string" && value.trim()) codes.add(value.trim());
+      if (typeof value === "number" && value !== 0) codes.add(String(value));
     }
   }
   if (codes.size > 0) return Array.from(codes).slice(0, 8);
@@ -635,6 +668,43 @@ function collectAbilityCodes(abilityBar, strings) {
     }
   }
   return Array.from(codes).slice(0, 8);
+}
+
+function collectAbilitySlots(abilityBar, strings) {
+  const slots = [];
+  if (isObject(abilityBar) || Array.isArray(abilityBar)) {
+    for (const [slot, value] of Object.entries(abilityBar)) {
+      const code =
+        typeof value === "string" && value.trim()
+          ? value.trim()
+          : typeof value === "number" && value !== 0
+            ? String(value)
+            : null;
+      if (code) slots.push({ slot: Array.isArray(abilityBar) ? `slot${slot}` : slot, code });
+    }
+  }
+  if (slots.length) return slots.slice(0, 8);
+  return collectAbilityCodes(abilityBar, strings).map((code, index) => ({ slot: `slot${index}`, code }));
+}
+
+function summarizeSkillTree(tree, index) {
+  const source = isObject(tree) ? tree : {};
+  const nodeIdsList = scalarCollectionValues(source.nodeIDs ?? source.nodeIds ?? source.nodesTaken);
+  const nodesTakenList = scalarCollectionValues(source.nodesTaken);
+  const nodePointsList = scalarCollectionValues(source.nodePoints);
+  const nodeCount = nodeIdsList.length || countCollection(source.nodeIDs) || countCollection(source.nodesTaken);
+  const pointCount = countCollection(source.nodePoints);
+  return {
+    index,
+    treeId: numberValue(source.treeID ?? source.treeId ?? source.abilityID ?? source.abilityId ?? source.skillID ?? source.skillId),
+    abilityCode: stringValue(source.abilityCode ?? source.ability ?? source.skillName ?? source.skill),
+    nodes: nodeCount,
+    nodePoints: pointCount,
+    pointsAllocated: sumNumericCollection(source.nodePoints),
+    nodeIdsList: nodeIdsList.slice(0, 120),
+    nodePointsList: nodePointsList.slice(0, 120),
+    nodesTakenList: nodesTakenList.slice(0, 120),
+  };
 }
 
 function summarizePosition(value) {

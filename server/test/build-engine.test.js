@@ -37,11 +37,28 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
             nodeIds: 50,
             nodePoints: 50,
             unspentPoints: 2,
+            nodeIdsList: [101, 102, 103],
+            nodePointsList: [5, 3, 1],
           },
           skills: {
             specializedTrees: 3,
             abilityBarSlots: 4,
             abilityCodes: ["fireball", "teleport"],
+            abilitySlots: [
+              { slot: "slot0", code: "fireball" },
+              { slot: "slot1", code: "teleport" },
+            ],
+            trees: [
+              {
+                treeId: 90,
+                abilityCode: "fireball",
+                nodes: 2,
+                nodePoints: 2,
+                pointsAllocated: 8,
+                nodeIdsList: [201, 202],
+                nodePointsList: [5, 3],
+              },
+            ],
           },
           quests: {
             completedObjectives: 10,
@@ -137,6 +154,9 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
   assert.ok(result.model.knowledge.tags.damage.includes("fire"));
   assert.ok(result.metrics.knowledgeReadiness > 0);
   assert.equal(result.model.characters[0].equipment.equippedItems.length, 1);
+  assert.deepEqual(result.model.characters[0].passiveTree.nodeIdsList, [101, 102, 103]);
+  assert.equal(result.model.characters[0].skills.trees[0].treeId, 90);
+  assert.deepEqual(result.model.characters[0].skills.abilitySlots[0], { slot: "slot0", code: "fireball" });
   assert.equal(result.model.characters[0].equipment.slots.helmet.fingerprint, "equipped1234567890aa");
   assert.equal(result.model.stash.upgradeCandidates.length, 1);
   assert.equal(result.model.stash.itemCards[0].fingerprint, "abc123def4567890abcd");

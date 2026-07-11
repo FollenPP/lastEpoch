@@ -73,7 +73,13 @@ test("analyzeFile parses EPOCH-prefixed character JSON", () => {
   assert.equal(result.gameSummary.name, "AdletM");
   assert.equal(result.gameSummary.level, 42);
   assert.equal(result.gameSummary.passiveTree.nodeIds, 3);
+  assert.deepEqual(result.gameSummary.passiveTree.nodeIdsList, [1, 2, 3]);
+  assert.deepEqual(result.gameSummary.passiveTree.nodePointsList, [5, 3, 1]);
   assert.equal(result.gameSummary.skills.specializedTrees, 2);
+  assert.deepEqual(result.gameSummary.skills.abilitySlots, [
+    { slot: "slot0", code: "sp5g2" },
+    { slot: "slot1", code: "ws54hm" },
+  ]);
 });
 
 test("analyzeSnapshot creates one card per item record", async () => {

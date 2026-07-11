@@ -230,36 +230,57 @@ function renderGameOverview(game) {
 
 function renderBuildAnalysis(buildAnalysis) {
   if (!buildAnalysis) return `<p class="muted">Build-анализ пока не создан.</p>`;
+  const character = activeCharacter(buildAnalysis.model);
   return `
-    <div class="summaryGrid">
-      ${metric("Полнота данных", `${buildAnalysis.metrics?.parseCompleteness ?? 0}%`)}
-      ${metric("Уверенность", `${buildAnalysis.metrics?.confidence ?? 0}%`)}
-      ${metric("Прокачка", `${buildAnalysis.metrics?.progressionReadiness ?? 0}%`)}
-      ${metric("Защита", `${buildAnalysis.metrics?.defensiveReadiness ?? 0}%`)}
-      ${metric("Скиллы", `${buildAnalysis.metrics?.skillReadiness ?? 0}%`)}
-      ${metric("Stash", `${buildAnalysis.metrics?.stashReadiness ?? 0}%`)}
-      ${metric("Game data", `${buildAnalysis.metrics?.knowledgeReadiness ?? 0}%`)}
-    </div>
-    ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
-    ${renderEquipmentModel(activeCharacter(buildAnalysis.model))}
-    <div class="analysisColumns">
-      <div>
-        <h3>Проблемы</h3>
-        ${renderIssues(buildAnalysis.issues ?? [])}
+    ${renderBuildHero(character, buildAnalysis)}
+    <div class="buildDashboard">
+      <div class="buildMain">
+        ${renderEquipmentBoard(character)}
+        ${renderBuildTrees(character)}
+        <section class="buildPanel">
+          <div class="panelHeading">
+            <div>
+              <p class="eyebrow">Stash upgrades</p>
+              <h3>Кандидаты на замену</h3>
+            </div>
+            <span class="pill info">${displayValue(buildAnalysis.model?.stash?.upgradeCandidates?.length ?? 0)} найдено</span>
+          </div>
+          ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
+        </section>
       </div>
-      <div>
-        <h3>Рекомендации</h3>
-        ${renderBuildRecommendations(buildAnalysis.recommendations ?? [])}
-      </div>
+      <aside class="buildAside">
+        <section class="sidePanel">
+          <h3>Готовность данных</h3>
+          <div class="scoreList">
+            ${scoreRow("Полнота", buildAnalysis.metrics?.parseCompleteness)}
+            ${scoreRow("Уверенность", buildAnalysis.metrics?.confidence)}
+            ${scoreRow("Прокачка", buildAnalysis.metrics?.progressionReadiness)}
+            ${scoreRow("Защита", buildAnalysis.metrics?.defensiveReadiness)}
+            ${scoreRow("Скиллы", buildAnalysis.metrics?.skillReadiness)}
+            ${scoreRow("Stash", buildAnalysis.metrics?.stashReadiness)}
+            ${scoreRow("Game data", buildAnalysis.metrics?.knowledgeReadiness)}
+          </div>
+        </section>
+        ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
+        <section class="sidePanel">
+          <h3>Проблемы</h3>
+          ${renderIssues(buildAnalysis.issues ?? [])}
+        </section>
+        <section class="sidePanel">
+          <h3>Рекомендации</h3>
+          ${renderBuildRecommendations(buildAnalysis.recommendations ?? [])}
+        </section>
+      </aside>
     </div>
-    <div class="section">
-      <h3>План развития</h3>
+    <section class="buildPanel">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Next steps</p>
+          <h3>План развития</h3>
+        </div>
+      </div>
       ${renderPlan(buildAnalysis.plan?.steps ?? [])}
-    </div>
-    <div class="section">
-      <h3>Кандидаты из stash</h3>
-      ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
-    </div>
+    </section>
   `;
 }
 
@@ -268,55 +289,360 @@ function activeCharacter(model) {
   return model.characters?.find((character) => character.id === model.activeCharacterId) ?? model.characters?.[0] ?? null;
 }
 
-function renderEquipmentModel(character) {
-  const equipment = character?.equipment;
-  if (!equipment) {
-    return `<div class="section"><h3>Экипировка</h3><p class="muted">Экипировка появится после распознавания active character.</p></div>`;
-  }
-  const equippedItems = equipment.equippedItems ?? [];
-  const inventoryItems = equipment.inventoryItems ?? [];
+function renderBuildHero(character, buildAnalysis) {
+  const profile = buildAnalysis.model?.knowledge;
+  const archetype = profile?.archetype?.name ?? "архетип уточняется";
+  const mode = character?.hardcore ? "Hardcore" : "Softcore";
   return `
-    <div class="section">
-      <h3>Экипировка</h3>
-      <div class="summaryGrid">
+    <section class="buildHero">
+      <div>
+        <p class="eyebrow">Active build</p>
+        <h2>${escapeHtml(character?.name ?? "Персонаж не выбран")}</h2>
+        <p>${escapeHtml(archetype)} · ${escapeHtml(mode)} · уровень ${displayValue(character?.level)}</p>
+      </div>
+      <div class="heroStats">
+        ${metric("Confidence", `${buildAnalysis.metrics?.confidence ?? 0}%`)}
+        ${metric("Items", character?.equipment?.rawItemRecords ?? 0)}
+        ${metric("Passives", character?.passiveTree?.nodes ?? 0)}
+        ${metric("Skills", character?.skills?.specializedTrees ?? 0)}
+      </div>
+    </section>
+  `;
+}
+
+function renderEquipmentBoard(character) {
+  const equipment = character?.equipment;
+  const equippedItems = equipment?.equippedItems ?? [];
+  const inventoryItems = equipment?.inventoryItems ?? [];
+  const slots = [
+    ["helmet", "Шлем"],
+    ["amulet", "Амулет"],
+    ["body", "Броня"],
+    ["weapon", "Оружие"],
+    ["offhand", "Левая рука"],
+    ["gloves", "Перчатки"],
+    ["ring", "Кольцо"],
+    ["belt", "Пояс"],
+    ["boots", "Ботинки"],
+    ["relic", "Реликвия"],
+    ["idol", "Идолы"],
+  ];
+  const slotMap = equipment?.slots ?? {};
+  return `
+    <section class="buildPanel">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Equipment</p>
+          <h3>Экипировка персонажа</h3>
+        </div>
+        <span class="pill ${equippedItems.length ? "success" : "warning"}">${equipmentStatusLabel(equipment?.status)}</span>
+      </div>
+      <div class="equipmentStats">
         ${metric("Надето", equippedItems.length)}
-        ${metric("В персонаже", equipment.rawItemRecords ?? 0)}
+        ${metric("Записей", equipment?.rawItemRecords ?? 0)}
         ${metric("Инвентарь", inventoryItems.length)}
-        ${metric("Статус", equipmentStatusLabel(equipment.status))}
+      </div>
+      <div class="equipmentBoard">
+        ${slots.map(([slot, label]) => renderEquipmentSlot(slot, label, slotMap[slot])).join("")}
       </div>
       ${
         equippedItems.length
-          ? `<div class="itemGrid">${equippedItems.slice(0, 12).map(renderEquipmentItem).join("")}</div>`
-          : `<p class="muted">Предметные записи персонажа найдены не во всех сейвах одинаково. Если список пустой, следующий шаг - калибровка по реальному sample save.</p>`
+          ? ""
+          : `<p class="muted">Сейв загружен, но надетые слоты пока определены не полностью. Когда itemData даст слот, карточка автоматически встанет в сетку.</p>`
       }
+    </section>
+  `;
+}
+
+function renderEquipmentSlot(slot, label, item) {
+  if (!item) {
+    return `
+      <div class="equipmentSlot empty">
+        <span class="slotLabel">${escapeHtml(label)}</span>
+        <span class="emptySlot">пусто</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="equipmentSlot filled rarity-${itemRarity(item)}">
+      <span class="slotLabel">${escapeHtml(label)}</span>
+      ${renderCompactItemContent(item)}
     </div>
   `;
 }
 
-function renderEquipmentItem(item) {
+function renderCompactItemContent(item) {
   return `
-    <article class="itemCard">
-      <div class="cardTop">
-        <h3>${escapeHtml(item.equipmentSlot || item.itemKind || "slot unknown")}</h3>
-        <span class="pill info">score ${displayValue(item.score)}</span>
+    <div class="compactItemName">${escapeHtml(itemDisplayName(item))}</div>
+    <div class="compactItemMeta">
+      <span>${rarityLabel(itemRarity(item))}</span>
+      <span>score ${displayValue(item.score)}</span>
+    </div>
+    <div class="compactItemFooter">${escapeHtml(item.fingerprint ?? "без fingerprint")}</div>
+  `;
+}
+
+function renderBuildTrees(character) {
+  return `
+    <section class="buildPanel">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Skills & passives</p>
+          <h3>Дерево прокачки</h3>
+        </div>
+        <span class="pill info">${displayValue(character?.passiveTree?.unspentPoints ?? 0)} свободно</span>
       </div>
-      <p class="muted">${escapeHtml(item.sourceName || item.source || item.id)}</p>
-      <div class="kvGrid compact">
-        ${kv("Location", locationTypeLabel(item.locationType))}
-        ${kv("Fingerprint", displayValue(item.fingerprint))}
-        ${kv("Data", displayValue(item.dataLength))}
-        ${kv("Path", displayValue(item.recordPath))}
+      ${renderAbilityBar(character?.skills)}
+      <div class="treeLayout">
+        ${renderPassiveTree(character?.passiveTree)}
+        ${renderSkillTrees(character?.skills)}
       </div>
+    </section>
+  `;
+}
+
+function renderAbilityBar(skills) {
+  const slots = skills?.abilitySlots?.length
+    ? skills.abilitySlots
+    : (skills?.abilityCodes ?? []).map((code, index) => ({ slot: `slot${index}`, code }));
+  const normalized = Array.from({ length: 5 }, (_, index) => slots[index] ?? { slot: `slot${index}`, code: null });
+  return `
+    <div class="skillBar">
+      ${normalized
+        .map(
+          (slot, index) => `
+            <div class="skillGem ${slot.code ? "filled" : "empty"}">
+              <span>${index + 1}</span>
+              <strong>${escapeHtml(slot.code ?? "пусто")}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPassiveTree(tree) {
+  const nodes = tree?.nodeIdsList?.length ? tree.nodeIdsList : tree?.nodesTakenList ?? [];
+  const nodeTotal = tree?.nodes ?? nodes.length ?? 0;
+  return `
+    <div class="treeCard passiveTree">
+      <div class="treeHeader">
+        <div>
+          <p class="eyebrow">Passive tree ${displayValue(tree?.treeId)}</p>
+          <h4>Пассивки</h4>
+        </div>
+        <span>${displayValue(nodeTotal)} узлов</span>
+      </div>
+      ${renderTreeNodes(nodes, tree?.nodePointsList ?? [], nodeTotal)}
+    </div>
+  `;
+}
+
+function renderSkillTrees(skills) {
+  const trees = skills?.trees ?? [];
+  if (!trees.length) {
+    return `
+      <div class="treeCard">
+        <div class="treeHeader">
+          <div>
+            <p class="eyebrow">Specializations</p>
+            <h4>Скилл-деревья</h4>
+          </div>
+        </div>
+        <p class="muted">Специализации пока видны только счетчиком: ${displayValue(skills?.specializedTrees ?? 0)}.</p>
+      </div>
+    `;
+  }
+  return `
+    <div class="skillTreeStack">
+      ${trees
+        .map(
+          (tree, index) => `
+            <div class="treeCard skillTreeCard">
+              <div class="treeHeader">
+                <div>
+                  <p class="eyebrow">Skill tree ${displayValue(tree.treeId ?? index + 1)}</p>
+                  <h4>${escapeHtml(tree.abilityCode ?? `Специализация ${index + 1}`)}</h4>
+                </div>
+                <span>${displayValue(tree.pointsAllocated || tree.nodePoints || tree.nodes)} очков</span>
+              </div>
+              ${renderTreeNodes(tree.nodeIdsList?.length ? tree.nodeIdsList : tree.nodesTakenList ?? [], tree.nodePointsList ?? [], tree.nodes ?? 0)}
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderTreeNodes(nodeIds, nodePoints, totalCount) {
+  const nodes = nodeIds?.length
+    ? nodeIds.slice(0, 72)
+    : Array.from({ length: Math.min(Number(totalCount ?? 0), 48) }, (_, index) => index + 1);
+  if (!nodes.length) {
+    return `<p class="muted">Узлы дерева в этом snapshot не найдены.</p>`;
+  }
+  return `
+    <div class="treeBoard">
+      ${nodes
+        .map((node, index) => {
+          const points = Number(nodePoints?.[index] ?? 1);
+          const strength = points >= 5 ? "high" : points >= 2 ? "mid" : "low";
+          return `
+            <div class="treeNode ${strength}" title="Node ${escapeHtml(node)} · ${displayValue(points)} points">
+              <span>${escapeHtml(shortNodeLabel(node))}</span>
+              <small>${Number.isFinite(points) ? points : 1}</small>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function shortNodeLabel(value) {
+  const text = String(value ?? "");
+  return text.length > 4 ? text.slice(-4) : text;
+}
+
+function renderGameItemCard(item, options = {}) {
+  const rarity = itemRarity(item);
+  const compact = Boolean(options.compact);
+  return `
+    <article class="gameItemCard rarity-${rarity} ${compact ? "compact" : ""}">
+      <div class="gameItemTop">
+        <div>
+          <p class="itemRarity">${rarityLabel(rarity)}</p>
+          <h3>${escapeHtml(itemDisplayName(item))}</h3>
+        </div>
+        <span class="itemScore">${displayValue(item.score)}</span>
+      </div>
+      <div class="itemMetaLine">
+        <span>${locationTypeLabel(item.locationType)}</span>
+        <span>${escapeHtml(slotLabel(item.equipmentSlot ?? item.itemKind))}</span>
+        <span>${sourceTypeLabel(item.sourceType)}</span>
+      </div>
+      ${renderItemAffixes(item)}
+      <div class="itemFooter">
+        <span>${escapeHtml(item.fingerprint ?? "no fingerprint")}</span>
+        <span>${decoderStatusLabel(item.decoderStatus)}</span>
+      </div>
+      ${options.compare ? renderItemComparison(item) : ""}
     </article>
+  `;
+}
+
+function renderItemAffixes(item) {
+  const fields = item.decoded?.metadata?.directFields ?? {};
+  const directRows = Object.entries(fields).slice(0, 5);
+  if (directRows.length) {
+    return `
+      <div class="affixList">
+        ${directRows
+          .map(([key, value]) => `<div class="affixRow"><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>`)
+          .join("")}
+      </div>
+    `;
+  }
+  return `
+    <div class="affixList locked">
+      <div class="affixRow"><span>Base / affixes</span><strong>нужен itemData mapping</strong></div>
+      <div class="affixRow"><span>Raw data</span><strong>${displayValue(item.dataLength)} bytes</strong></div>
+      <div class="affixRow"><span>Hex</span><strong>${escapeHtml(item.decoded?.previewHex ?? "нет")}</strong></div>
+    </div>
+  `;
+}
+
+function renderItemComparison(item) {
+  const comparison = item.comparison ?? {};
+  return `
+    <div class="comparisonStrip">
+      <span>${comparisonStatusLabel(comparison.status)}</span>
+      <strong>${comparison.scoreDelta === null || comparison.scoreDelta === undefined ? "delta ?" : `${comparison.scoreDelta > 0 ? "+" : ""}${comparison.scoreDelta}`}</strong>
+    </div>
+  `;
+}
+
+function itemDisplayName(item) {
+  const fields = item.decoded?.metadata?.directFields ?? {};
+  const base =
+    fields.uniqueID ??
+    fields.uniqueId ??
+    fields.baseType ??
+    fields.itemType ??
+    fields.itemTypeID ??
+    fields.itemTypeId ??
+    item.equipmentSlot ??
+    item.itemKind;
+  const label = slotLabel(base);
+  const fingerprint = item.fingerprint ? ` #${String(item.fingerprint).slice(0, 6)}` : "";
+  return `${label}${fingerprint}`;
+}
+
+function itemRarity(item) {
+  const fields = item.decoded?.metadata?.directFields ?? {};
+  const signal = `${fields.rarity ?? ""} ${fields.uniqueID ?? ""} ${fields.uniqueId ?? ""} ${item.sourceName ?? ""} ${item.recordPath ?? ""}`.toLowerCase();
+  if (signal.includes("legendary")) return "legendary";
+  if (signal.includes("unique")) return "unique";
+  if (signal.includes("set")) return "set";
+  if (signal.includes("exalted")) return "exalted";
+  const score = Number(item.score ?? 0);
+  if (score >= 90) return "exalted";
+  if (score >= 70) return "rare";
+  if (score >= 45) return "magic";
+  return "normal";
+}
+
+function rarityLabel(rarity) {
+  return (
+    {
+      legendary: "Legendary",
+      unique: "Unique",
+      set: "Set",
+      exalted: "Exalted",
+      rare: "Rare",
+      magic: "Magic",
+      normal: "Item",
+    }[rarity] ?? "Item"
+  );
+}
+
+function slotLabel(value) {
+  return (
+    {
+      helmet: "Шлем",
+      body: "Броня",
+      gloves: "Перчатки",
+      boots: "Ботинки",
+      belt: "Пояс",
+      relic: "Реликвия",
+      amulet: "Амулет",
+      ring: "Кольцо",
+      weapon: "Оружие",
+      offhand: "Левая рука",
+      idol: "Идол",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function scoreRow(label, value) {
+  const number = Number(value ?? 0);
+  return `
+    <div class="scoreRow">
+      <span>${escapeHtml(label)}</span>
+      <div class="scoreTrack"><i style="width:${Math.max(0, Math.min(100, number))}%"></i></div>
+      <strong>${Number.isFinite(number) ? Math.round(number) : 0}%</strong>
+    </div>
   `;
 }
 
 function renderBuildProfile(profile, gameData) {
   if (!profile) {
-    return `<div class="section"><p class="muted">Профиль билда появится после распознавания персонажа.</p></div>`;
+    return `<section class="sidePanel"><p class="muted">Профиль билда появится после распознавания персонажа.</p></section>`;
   }
   return `
-    <div class="section">
+    <section class="sidePanel buildProfile">
       <h3>Профиль билда</h3>
       <div class="cardGrid smallCards">
         ${infoCard("Архетип", profile.archetype?.name ?? "не распознан", `Уверенность game-data слоя: ${Math.round((profile.confidence ?? 0) * 100)}%.`)}
@@ -325,7 +651,7 @@ function renderBuildProfile(profile, gameData) {
         ${infoCard("Utility", profile.tags?.utility?.join(", ") || "не найдена", "Movement/sustain/utility сигналы из skill bar.")}
       </div>
       ${renderPriorityList(profile.priorities ?? [])}
-    </div>
+    </section>
   `;
 }
 
@@ -410,32 +736,8 @@ function renderUpgradeCandidates(candidates) {
     return `<p class="muted">Кандидаты появятся после расшифровки itemData или когда stash содержит предметные записи.</p>`;
   }
   return `
-    <div class="itemGrid">
-      ${candidates
-        .slice(0, 12)
-        .map(
-          (item) => `
-            <article class="itemCard">
-              <div class="cardTop">
-                <h3>${escapeHtml(item.sourceName || item.source || item.id)}</h3>
-                <span class="pill info">score ${displayValue(item.score)}</span>
-              </div>
-              <p>${escapeHtml(item.reason ?? "Кандидат из stash.")}</p>
-              <div class="kvGrid compact">
-                ${kv("Источник", sourceTypeLabel(item.sourceType))}
-                ${kv("Позиция", escapeHtml(item.inventoryPosition || "не найдена"))}
-                ${kv("Slot", displayValue(item.comparison?.slot ?? item.equipmentSlot ?? item.itemKind))}
-                ${kv("Compare", comparisonStatusLabel(item.comparison?.status))}
-                ${kv("Delta", displayValue(item.comparison?.scoreDelta))}
-                ${kv("Data", displayValue(item.dataLength))}
-                ${kv("Fingerprint", displayValue(item.fingerprint))}
-                ${kv("Status", decoderStatusLabel(item.decoderStatus))}
-                ${kv("Уверенность", escapeHtml(item.confidence ?? "low"))}
-              </div>
-            </article>
-          `,
-        )
-        .join("")}
+    <div class="gameItemGrid">
+      ${candidates.slice(0, 12).map((item) => renderGameItemCard(item, { compare: true })).join("")}
     </div>
   `;
 }
@@ -545,36 +847,9 @@ function renderItemCards(items) {
     return `<p class="muted">Предметные записи пока не распознаны. После маппинга itemData здесь появятся базы, аффиксы и сравнение апгрейдов.</p>`;
   }
   return `
-    <p class="muted">Найдено записей: ${items.totalRecords}. Сейчас это технические карточки itemData; следующий слой - расшифровка базы предмета и аффиксов.</p>
-    <div class="itemGrid">
-      ${cards
-        .map(
-          (card, index) => `
-            <article class="itemCard">
-              <div class="cardTop">
-                <h3>Предмет #${index + 1}</h3>
-                <span class="pill info">${sourceTypeLabel(card.sourceType)}</span>
-              </div>
-              <p class="muted">${escapeHtml(card.sourceName || card.source)}</p>
-              <div class="kvGrid compact">
-                ${kv("Кол-во", displayValue(card.quantity))}
-                ${kv("Контейнер", displayValue(card.containerId))}
-                ${kv("Позиция", escapeHtml(card.inventoryPosition || "не найдена"))}
-                ${kv("Версия", displayValue(card.formatVersion))}
-                ${kv("Data", displayValue(card.dataLength))}
-                ${kv("Score", displayValue(card.score))}
-                ${kv("Location", locationTypeLabel(card.locationType))}
-                ${kv("Slot", displayValue(card.equipmentSlot ?? card.itemKind))}
-                ${kv("Fingerprint", displayValue(card.fingerprint))}
-                ${kv("Status", decoderStatusLabel(card.decoderStatus))}
-                ${kv("Hex", displayValue(card.decoded?.previewHex))}
-                ${kv("Path", displayValue(card.recordPath))}
-                ${kv("Checksum", displayValue(card.decoded?.checksum))}
-              </div>
-            </article>
-          `,
-        )
-        .join("")}
+    <p class="muted">Найдено записей: ${items.totalRecords}. Карточки уже разложены как игровые предметы; неизвестные base/affix поля отмечены до подключения полного itemData mapping.</p>
+    <div class="gameItemGrid">
+      ${cards.map((card) => renderGameItemCard(card)).join("")}
     </div>
   `;
 }

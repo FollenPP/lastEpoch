@@ -412,8 +412,12 @@ export function searchStashUpgrades(model) {
 function normalizeCharacter(character, snapshot, index) {
   const id = stableId("character", snapshot.id, character.file ?? index);
   const passiveNodeCount = numberValue(character.passiveTree?.nodeIds) || numberValue(character.passiveTree?.nodesTaken) || 0;
-  const skillTreeCount = numberValue(character.skills?.specializedTrees) || 0;
+  const skillTrees = normalizeSkillTrees(character.skills?.trees);
+  const skillTreeCount = numberValue(character.skills?.specializedTrees) || skillTrees.length || 0;
   const abilityBarSlots = numberValue(character.skills?.abilityBarSlots) || 0;
+  const passiveNodeIdsList = arrayValue(character.passiveTree?.nodeIdsList);
+  const passiveNodePointsList = arrayValue(character.passiveTree?.nodePointsList);
+  const passiveNodesTakenList = arrayValue(character.passiveTree?.nodesTakenList);
 
   return {
     id,
@@ -436,13 +440,22 @@ function normalizeCharacter(character, snapshot, index) {
       nodes: passiveNodeCount,
       nodePoints: numberValue(character.passiveTree?.nodePoints) ?? 0,
       unspentPoints: numberValue(character.passiveTree?.unspentPoints) ?? 0,
-      hasData: passiveNodeCount > 0 || (numberValue(character.passiveTree?.nodePoints) ?? 0) > 0,
+      nodeIdsList: passiveNodeIdsList,
+      nodePointsList: passiveNodePointsList,
+      nodesTakenList: passiveNodesTakenList,
+      hasData:
+        passiveNodeCount > 0 ||
+        (numberValue(character.passiveTree?.nodePoints) ?? 0) > 0 ||
+        passiveNodeIdsList.length > 0 ||
+        passiveNodesTakenList.length > 0,
     },
     skills: {
       specializedTrees: skillTreeCount,
       abilityBarSlots,
-      abilityCodes: character.skills?.abilityCodes ?? [],
-      hasData: skillTreeCount > 0 || abilityBarSlots > 0,
+      abilityCodes: arrayValue(character.skills?.abilityCodes),
+      abilitySlots: normalizeAbilitySlots(character.skills?.abilitySlots, character.skills?.abilityCodes),
+      trees: skillTrees,
+      hasData: skillTreeCount > 0 || abilityBarSlots > 0 || skillTrees.length > 0,
     },
     equipment: {
       decodedItems: 0,
@@ -774,6 +787,37 @@ function stableId(...parts) {
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function arrayValue(value, limit = 160) {
+  return Array.isArray(value) ? value.slice(0, limit) : [];
+}
+
+function normalizeAbilitySlots(slots, fallbackCodes) {
+  if (Array.isArray(slots)) {
+    return slots
+      .map((slot, index) => ({
+        slot: String(slot?.slot ?? `slot${index}`),
+        code: String(slot?.code ?? "").trim(),
+      }))
+      .filter((slot) => slot.code)
+      .slice(0, 8);
+  }
+  return arrayValue(fallbackCodes, 8).map((code, index) => ({ slot: `slot${index}`, code: String(code) }));
+}
+
+function normalizeSkillTrees(trees) {
+  return arrayValue(trees, 8).map((tree, index) => ({
+    index: numberValue(tree?.index) ?? index,
+    treeId: numberValue(tree?.treeId),
+    abilityCode: typeof tree?.abilityCode === "string" && tree.abilityCode.trim() ? tree.abilityCode.trim() : null,
+    nodes: numberValue(tree?.nodes) ?? arrayValue(tree?.nodeIdsList).length,
+    nodePoints: numberValue(tree?.nodePoints) ?? arrayValue(tree?.nodePointsList).length,
+    pointsAllocated: numberValue(tree?.pointsAllocated) ?? 0,
+    nodeIdsList: arrayValue(tree?.nodeIdsList, 120),
+    nodePointsList: arrayValue(tree?.nodePointsList, 120),
+    nodesTakenList: arrayValue(tree?.nodesTakenList, 120),
+  }));
 }
 
 function numberValue(value) {
