@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.4"
+PLUGIN_VERSION = "0.1.5"
 DEFAULT_SERVER_URL = "http://185.201.28.103"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
@@ -89,6 +89,15 @@ class Plugin:
     async def install_latest_update(self):
         return await asyncio.to_thread(_install_latest_update)
 
+    async def backend_self_test(self):
+        settings = await asyncio.to_thread(_read_settings)
+        return {
+            "ok": True,
+            "version": PLUGIN_VERSION,
+            "serverUrl": settings["serverUrl"],
+            "paired": bool(settings["pairingToken"]),
+        }
+
 
 def _settings_path():
     return Path(decky.DECKY_SETTINGS_DIR) / "last-epoch-companion.json"
@@ -116,7 +125,7 @@ def _read_settings():
     except Exception:
         return _default_settings()
     settings = {**_default_settings(), **loaded}
-    if "adlethome" in str(settings.get("serverUrl", "")):
+    if not str(settings.get("serverUrl", "")).strip() or "adlethome" in str(settings.get("serverUrl", "")):
         settings["serverUrl"] = DEFAULT_SERVER_URL
     return settings
 

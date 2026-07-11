@@ -55,6 +55,7 @@ const sendSnapshot = callable<[], SendResult>("send_snapshot");
 const downloadReviewFilter = callable<[snapshotId: string], { fileName: string; path: string }>("download_review_filter");
 const checkUpdate = callable<[], UpdateInfo>("check_update");
 const installLatestUpdate = callable<[], UpdateInfo>("install_latest_update");
+const backendSelfTest = callable<[], { ok: boolean; version: string; serverUrl: string; paired: boolean }>("backend_self_test");
 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
@@ -88,6 +89,7 @@ function Content() {
 
   const loadSetup = async () => {
     setBusy(true);
+    setStatus("Loading setup file...");
     try {
       const loaded = await importSetupFile();
       setSettings(loaded);
@@ -97,7 +99,7 @@ function Content() {
         body: "Laptop setup loaded.",
       });
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -105,11 +107,12 @@ function Content() {
 
   const ping = async () => {
     setBusy(true);
+    setStatus("Testing server...");
     try {
       await pingServer();
       setStatus("Server is reachable.");
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -117,13 +120,14 @@ function Content() {
 
   const startDevicePairing = async () => {
     setBusy(true);
+    setStatus("Creating pairing request...");
     try {
       const result = await startPairing();
       const loaded = await getSettings();
       setSettings(loaded);
       setStatus(`Pairing code ${result.code}. Approve this Deck in the web UI.`);
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -131,6 +135,7 @@ function Content() {
 
   const checkDevicePairing = async () => {
     setBusy(true);
+    setStatus("Checking pairing request...");
     try {
       const result = await checkPairing();
       const loaded = await getSettings();
@@ -141,7 +146,7 @@ function Content() {
         setStatus(`Pairing is ${result.status}. Approve code ${result.code} in the web UI.`);
       }
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -149,11 +154,12 @@ function Content() {
 
   const scan = async () => {
     setBusy(true);
+    setStatus("Scanning Last Epoch files...");
     try {
       const result = await scanLocal();
       setStatus(`Found ${result.saveFiles} save file(s), ${result.filterFiles} filter file(s), ${formatBytes(result.totalBytes)} total.`);
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -161,6 +167,7 @@ function Content() {
 
   const send = async () => {
     setBusy(true);
+    setStatus("Sending snapshot...");
     try {
       const result = await sendSnapshot();
       const nextSettings = { ...settings, lastSnapshotId: result.snapshot.id };
@@ -173,7 +180,7 @@ function Content() {
         body: "Snapshot sent to laptop.",
       });
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -185,6 +192,7 @@ function Content() {
       return;
     }
     setBusy(true);
+    setStatus("Downloading review filter...");
     try {
       const result = await downloadReviewFilter(settings.lastSnapshotId);
       setStatus(`Saved ${result.fileName} to Filters.`);
@@ -193,7 +201,7 @@ function Content() {
         body: "Review filter saved.",
       });
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -201,6 +209,7 @@ function Content() {
 
   const resetPaths = async () => {
     setBusy(true);
+    setStatus("Resetting paths...");
     try {
       const saved = await saveSettings({
         ...settings,
@@ -210,7 +219,7 @@ function Content() {
       setSettings(saved);
       setStatus("Last Epoch paths reset.");
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -218,6 +227,7 @@ function Content() {
 
   const checkForUpdates = async () => {
     setBusy(true);
+    setStatus("Checking GitHub releases...");
     try {
       const result = await checkUpdate();
       setUpdateInfo(result);
@@ -227,7 +237,7 @@ function Content() {
           : `Plugin is up to date: ${result.currentVersion}.`,
       );
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -235,6 +245,7 @@ function Content() {
 
   const installUpdate = async () => {
     setBusy(true);
+    setStatus("Installing latest plugin release...");
     try {
       const result = await installLatestUpdate();
       setUpdateInfo(result);
@@ -248,10 +259,32 @@ function Content() {
         body: result.installed ? "Update installed. Restart Decky." : "Already up to date.",
       });
     } catch (error) {
-      setStatus(errorMessage(error));
+      showError(error);
     } finally {
       setBusy(false);
     }
+  };
+
+  const runBackendSelfTest = async () => {
+    setBusy(true);
+    setStatus("Calling Python backend...");
+    try {
+      const result = await backendSelfTest();
+      setStatus(`Backend OK. v${result.version}, ${result.serverUrl}, ${result.paired ? "paired" : "not paired"}.`);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const showError = (error: unknown) => {
+    const message = errorMessage(error);
+    setStatus(message);
+    toaster.toast({
+      title: "Last Epoch Companion",
+      body: message,
+    });
   };
 
   return (
@@ -267,6 +300,9 @@ function Content() {
               setStatus("UI self test worked.");
             }}
           />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionField label="Backend Self Test" description="Call Python backend" disabled={busy} onAction={runBackendSelfTest} />
         </PanelSectionRow>
       </PanelSection>
 
