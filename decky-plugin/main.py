@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.3"
+PLUGIN_VERSION = "0.1.4"
 DEFAULT_SERVER_URL = "http://185.201.28.103"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"

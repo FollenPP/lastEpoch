@@ -1,5 +1,5 @@
 import { callable, definePlugin, toaster } from "@decky/api";
-import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { FaCloudUploadAlt } from "react-icons/fa";
 
@@ -62,7 +62,7 @@ const defaultServerUrl = "http://185.201.28.103";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({
-    serverUrl: "",
+    serverUrl: defaultServerUrl,
     pairingToken: "",
     savesRoot: defaultSavesRoot,
     filtersRoot: defaultFiltersRoot,
@@ -79,7 +79,8 @@ function Content() {
   useEffect(() => {
     getSettings()
       .then((loaded) => {
-        setSettings(loaded);
+        const nextSettings = { ...loaded, serverUrl: loaded.serverUrl || defaultServerUrl };
+        setSettings(nextSettings);
         setStatus(loaded.pairingToken ? "Paired. Send a snapshot when ready." : "Start pairing or load setup file.");
       })
       .catch((error: unknown) => setStatus(errorMessage(error)));
@@ -277,19 +278,19 @@ function Content() {
           <ActionField label="Load Setup File" description="Read settings from Downloads" disabled={busy} onAction={loadSetup} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <Field label="Server" description={settings.serverUrl || defaultServerUrl} focusable={false} />
+          <Field label="Server" description={settings.serverUrl} focusable={false} />
         </PanelSectionRow>
         <PanelSectionRow>
           <Field label="Device token" description={settings.pairingToken ? "Paired" : "Not paired"} focusable={false} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ActionField label="Start Pairing" description="Create approval request" disabled={busy || !settings.serverUrl} onAction={startDevicePairing} />
+          <ActionField label="Start Pairing" description="Create approval request" disabled={busy} onAction={startDevicePairing} />
         </PanelSectionRow>
         <PanelSectionRow>
           <ActionField label="Check Pairing" description={settings.pairingCode ? `Code ${settings.pairingCode}` : "No pairing request yet"} disabled={busy || !settings.pairingRequestId} onAction={checkDevicePairing} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ActionField label="Test Server" description="Check laptop/VPS API" disabled={busy || !settings.serverUrl} onAction={ping} />
+          <ActionField label="Test Server" description="Check laptop/VPS API" disabled={busy} onAction={ping} />
         </PanelSectionRow>
       </PanelSection>
 
@@ -307,7 +308,7 @@ function Content() {
           <ActionField label="Scan Local Files" description="Count saves and filters" disabled={busy} onAction={scan} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ActionField label="Send Snapshot" description="Upload to analyzer" disabled={busy || !settings.serverUrl || !settings.pairingToken} onAction={send} />
+          <ActionField label="Send Snapshot" description="Upload to analyzer" disabled={busy || !settings.pairingToken} onAction={send} />
         </PanelSectionRow>
         <PanelSectionRow>
           <ActionField label="Download Review Filter" description="Save generated filter" disabled={busy || !settings.lastSnapshotId} onAction={downloadFilter} />
@@ -359,13 +360,12 @@ function ActionField({ label, description, disabled, onAction }: ActionFieldProp
   };
 
   return (
-    <Field
+    <ButtonItem
       label={label}
       description={disabled ? "Unavailable right now" : description}
-      focusable={!disabled}
       highlightOnFocus
-      onActivate={handleAction}
       onClick={handleAction}
+      disabled={disabled}
     />
   );
 }
