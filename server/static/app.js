@@ -98,8 +98,8 @@ function renderSnapshots() {
 async function selectSnapshot(id) {
   state.selectedId = id;
   renderSnapshots();
-  const response = await api(`/api/snapshots/${encodeURIComponent(id)}`, { auth: true });
-  renderSnapshotDetail(response.snapshot, response.analysis);
+  const response = await api(`/api/v1/snapshots/${encodeURIComponent(id)}`, { auth: true });
+  renderSnapshotDetail(response.snapshot, response.analysis, response.buildAnalysis);
 }
 
 function renderPairings(pairings) {
@@ -127,7 +127,7 @@ async function approvePairing(id) {
   await loadPairings();
 }
 
-function renderSnapshotDetail(snapshot, analysis) {
+function renderSnapshotDetail(snapshot, analysis, buildAnalysis) {
   emptyState.classList.add("hidden");
   snapshotDetail.classList.remove("hidden");
 
@@ -158,6 +158,11 @@ function renderSnapshotDetail(snapshot, analysis) {
     <section class="section">
       <h2>Игровой обзор</h2>
       ${renderGameOverview(game)}
+    </section>
+
+    <section class="section">
+      <h2>Анализ билда</h2>
+      ${renderBuildAnalysis(buildAnalysis)}
     </section>
 
     <section class="section">
@@ -219,6 +224,124 @@ function renderGameOverview(game) {
       ${infoCard("Золото в сундуках", formatNumber(game.stash.totalGold ?? 0), "Сумма по распознанным STASH_CYCLE файлам.")}
       ${infoCard("Записи предметов", `${game.items.totalRecords ?? 0}`, "Сырые itemData-записи для будущего сравнения предметов.")}
       ${infoCard("Дерево/скиллы", game.build.hasPassiveTreeData || game.build.hasSkillTreeData ? "найдены" : "не найдены", "Пока показываем состояние, без карты nodeID -> название узла.")}
+    </div>
+  `;
+}
+
+function renderBuildAnalysis(buildAnalysis) {
+  if (!buildAnalysis) return `<p class="muted">Build-анализ пока не создан.</p>`;
+  return `
+    <div class="summaryGrid">
+      ${metric("Полнота данных", `${buildAnalysis.metrics?.parseCompleteness ?? 0}%`)}
+      ${metric("Уверенность", `${buildAnalysis.metrics?.confidence ?? 0}%`)}
+      ${metric("Прокачка", `${buildAnalysis.metrics?.progressionReadiness ?? 0}%`)}
+      ${metric("Защита", `${buildAnalysis.metrics?.defensiveReadiness ?? 0}%`)}
+      ${metric("Скиллы", `${buildAnalysis.metrics?.skillReadiness ?? 0}%`)}
+      ${metric("Stash", `${buildAnalysis.metrics?.stashReadiness ?? 0}%`)}
+    </div>
+    <div class="analysisColumns">
+      <div>
+        <h3>Проблемы</h3>
+        ${renderIssues(buildAnalysis.issues ?? [])}
+      </div>
+      <div>
+        <h3>Рекомендации</h3>
+        ${renderBuildRecommendations(buildAnalysis.recommendations ?? [])}
+      </div>
+    </div>
+    <div class="section">
+      <h3>План развития</h3>
+      ${renderPlan(buildAnalysis.plan?.steps ?? [])}
+    </div>
+    <div class="section">
+      <h3>Кандидаты из stash</h3>
+      ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
+    </div>
+  `;
+}
+
+function renderIssues(issues) {
+  if (!issues.length) return `<p class="muted">Критичных проблем по доступным данным не найдено.</p>`;
+  return `
+    <div class="recommendations">
+      ${issues
+        .map(
+          (issue) => `
+            <article class="recommendation ${escapeHtml(issue.severity)}">
+              <h3>${escapeHtml(issue.title)}</h3>
+              <p>${escapeHtml(issue.body)}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderBuildRecommendations(recommendations) {
+  if (!recommendations.length) return `<p class="muted">Рекомендаций пока нет.</p>`;
+  return `
+    <div class="recommendations">
+      ${recommendations
+        .map(
+          (item) => `
+            <article class="recommendation">
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.action)}</p>
+              <p class="muted">${escapeHtml(item.expectedEffect)} · уверенность ${Math.round((item.confidence ?? 0) * 100)}%</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlan(steps) {
+  if (!steps.length) return `<p class="muted">План появится после анализа персонажа.</p>`;
+  return `
+    <div class="cardGrid smallCards">
+      ${steps
+        .map(
+          (step) => `
+            <article class="infoCard">
+              <p class="eyebrow">${escapeHtml(step.phase)}</p>
+              <h3>${escapeHtml(step.title)}</h3>
+              <p>${escapeHtml(step.action)}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderUpgradeCandidates(candidates) {
+  if (!candidates.length) {
+    return `<p class="muted">Кандидаты появятся после расшифровки itemData или когда stash содержит предметные записи.</p>`;
+  }
+  return `
+    <div class="itemGrid">
+      ${candidates
+        .slice(0, 12)
+        .map(
+          (item) => `
+            <article class="itemCard">
+              <div class="cardTop">
+                <h3>${escapeHtml(item.sourceName || item.source || item.id)}</h3>
+                <span class="pill info">score ${displayValue(item.score)}</span>
+              </div>
+              <p>${escapeHtml(item.reason ?? "Кандидат из stash.")}</p>
+              <div class="kvGrid compact">
+                ${kv("Источник", sourceTypeLabel(item.sourceType))}
+                ${kv("Позиция", escapeHtml(item.inventoryPosition || "не найдена"))}
+                ${kv("Data", displayValue(item.dataLength))}
+                ${kv("Уверенность", escapeHtml(item.confidence ?? "low"))}
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }

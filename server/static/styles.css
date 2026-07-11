@@ -230,6 +230,13 @@ h3 {
   margin-top: 12px;
 }
 
+.analysisColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
 .metric {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -469,6 +476,10 @@ pre {
 
 @media (max-width: 900px) {
   .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .analysisColumns {
     grid-template-columns: 1fr;
   }
 

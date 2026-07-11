@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeSnapshot } from "./analyzer.js";
+import { buildAnalyzerSnapshot, searchStashUpgrades } from "./build-engine.js";
 import { generateReviewFilter } from "./filter-generator.js";
 import {
   dataDir,
@@ -137,6 +138,95 @@ async function route(req, res) {
     return;
   }
 
+  const v1SnapshotMatch = url.pathname.match(/^\/api\/v1\/snapshots\/([a-zA-Z0-9_-]+)$/);
+  if (method === "GET" && v1SnapshotMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { snapshot, analysis, buildAnalysis } = await readBuildAnalysis(v1SnapshotMatch[1]);
+    sendJson(res, 200, { snapshot, analysis, buildAnalysis, apiVersion: "v1" });
+    return;
+  }
+
+  const v1CreateAnalysisMatch = url.pathname.match(/^\/api\/v1\/snapshots\/([a-zA-Z0-9_-]+)\/analyses$/);
+  if (method === "POST" && v1CreateAnalysisMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { snapshot, analysis, buildAnalysis } = await recalculateBuildAnalysis(v1CreateAnalysisMatch[1]);
+    sendJson(res, 201, { snapshot, analysis, buildAnalysis, apiVersion: "v1" });
+    return;
+  }
+
+  const v1AnalysisMatch = url.pathname.match(/^\/api\/v1\/analyses\/([a-zA-Z0-9_-]+)$/);
+  if (method === "GET" && v1AnalysisMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1AnalysisMatch[1]);
+    sendJson(res, 200, { analysis: buildAnalysis, apiVersion: "v1" });
+    return;
+  }
+
+  const v1RecalculateMatch = url.pathname.match(/^\/api\/v1\/analyses\/([a-zA-Z0-9_-]+)\/recalculate$/);
+  if (method === "POST" && v1RecalculateMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await recalculateBuildAnalysis(v1RecalculateMatch[1]);
+    sendJson(res, 200, { analysis: buildAnalysis, apiVersion: "v1" });
+    return;
+  }
+
+  const v1AnalysisPartMatch = url.pathname.match(/^\/api\/v1\/analyses\/([a-zA-Z0-9_-]+)\/(issues|metrics|breakdown|recommendations)$/);
+  if (method === "GET" && v1AnalysisPartMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1AnalysisPartMatch[1]);
+    const part = v1AnalysisPartMatch[2];
+    sendJson(res, 200, { [part]: buildAnalysis[part], apiVersion: "v1" });
+    return;
+  }
+
+  const v1StashItemsMatch = url.pathname.match(/^\/api\/v1\/stashes\/([a-zA-Z0-9_-]+)\/items$/);
+  if (method === "GET" && v1StashItemsMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1StashItemsMatch[1]);
+    sendJson(res, 200, { items: buildAnalysis.model.stash.itemCards, apiVersion: "v1" });
+    return;
+  }
+
+  const v1StashUpgradeMatch = url.pathname.match(/^\/api\/v1\/stashes\/([a-zA-Z0-9_-]+)\/search-upgrades$/);
+  if (method === "POST" && v1StashUpgradeMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1StashUpgradeMatch[1]);
+    sendJson(res, 200, { candidates: searchStashUpgrades(buildAnalysis.model), apiVersion: "v1" });
+    return;
+  }
+
+  const v1StashSimulateMatch = url.pathname.match(/^\/api\/v1\/stashes\/([a-zA-Z0-9_-]+)\/items\/([^/]+)\/simulate$/);
+  if (method === "POST" && v1StashSimulateMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1StashSimulateMatch[1]);
+    const itemId = decodeURIComponent(v1StashSimulateMatch[2]);
+    const item = buildAnalysis.model.stash.itemCards.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      sendJson(res, 404, { error: "not_found", message: "Item candidate was not found in this snapshot." });
+      return;
+    }
+    sendJson(res, 200, {
+      item,
+      simulation: {
+        status: "estimated",
+        expectedEffect: "Точный эффект появится после itemData decoder и formula engine.",
+        confidence: "low",
+      },
+      apiVersion: "v1",
+    });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/v1/loot-filters/generate") {
+    if (!hasAccess(req)) return unauthorized(res);
+    const body = await readJsonBody(req);
+    const id = String(body.snapshotId ?? "manual");
+    const fileName = `DeckCompanion_${id}.xml`;
+    const xml = generateReviewFilter({ snapshotId: id });
+    sendJson(res, 200, { fileName, xml, apiVersion: "v1" });
+    return;
+  }
+
   if (method === "GET" && url.pathname === "/api/pairing") {
     if (!isLoopback(req.socket.remoteAddress)) {
       sendJson(res, 403, { error: "forbidden", message: "Pairing token is only shown to localhost." });
@@ -257,6 +347,27 @@ async function importSnapshot(body) {
   const analysis = await analyzeSnapshot(manifest, rawDir);
   await writeAnalysis(manifest.id, analysis);
   return { snapshot: manifest, analysis };
+}
+
+async function readBuildAnalysis(id) {
+  const { manifest, analysis } = await readSnapshot(id);
+  const currentAnalysis = analysis ?? (await recalculateBuildAnalysis(id)).analysis;
+  return {
+    snapshot: manifest,
+    analysis: currentAnalysis,
+    buildAnalysis: buildAnalyzerSnapshot(manifest, currentAnalysis),
+  };
+}
+
+async function recalculateBuildAnalysis(id) {
+  const { manifest, rawDir } = await readSnapshot(id);
+  const analysis = await analyzeSnapshot(manifest, rawDir);
+  await writeAnalysis(manifest.id, analysis);
+  return {
+    snapshot: manifest,
+    analysis,
+    buildAnalysis: buildAnalyzerSnapshot(manifest, analysis),
+  };
 }
 
 async function serveStatic(requestPath, res) {
