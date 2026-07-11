@@ -100,6 +100,7 @@ export function calculateMetrics(model) {
       hasGameData: model.gameData?.status === "starter",
       hasArchetype: Boolean(model.knowledge?.archetype?.primary && model.knowledge.archetype.primary !== "unknown"),
       hasEquipment: (active?.equipment?.equippedItems?.length ?? 0) > 0,
+      hasDecodedItems: model.stash.itemCards.some((item) => item.gameItem) || model.characters.some((character) => character.equipment.equippedItems.some((item) => item.gameItem)),
     },
   };
 }
@@ -197,7 +198,7 @@ export function detectIssues(model, metrics) {
     );
   }
 
-  if (metrics.dataQuality.hasItems) {
+  if (metrics.dataQuality.hasItems && !metrics.dataQuality.hasDecodedItems) {
     issues.push(
       issue(
         "items-undecoded",
@@ -519,15 +520,19 @@ function buildEquipmentModel(character, itemCards) {
   const equippedItems = relatedItems.filter((item) => item.locationType === "equipped" || Boolean(item.equipmentSlot));
   const inventoryItems = relatedItems.filter((item) => item.locationType === "inventory" || item.locationType === "character");
   const slots = {};
+  const slotCounts = {};
   for (const item of equippedItems) {
     const slot = item.equipmentSlot ?? item.itemKind ?? "unknown";
-    if (!slots[slot] || estimateItemScore(item) > estimateItemScore(slots[slot])) {
-      slots[slot] = item;
+    const slotIndex = slotCounts[slot] ?? 0;
+    const displaySlot = displaySlotKey(slot, slotIndex);
+    slotCounts[slot] = slotIndex + 1;
+    if (!slots[displaySlot] || estimateItemScore(item) > estimateItemScore(slots[displaySlot])) {
+      slots[displaySlot] = item;
     }
   }
 
   return {
-    decodedItems: equippedItems.filter((item) => item.decoderStatus === "raw-bytes").length,
+    decodedItems: equippedItems.filter((item) => item.gameItem || item.decoderStatus === "decoded-item").length,
     rawItemRecords: relatedItems.length,
     equippedItems,
     inventoryItems,
@@ -539,6 +544,13 @@ function buildEquipmentModel(character, itemCards) {
           ? "character-items-without-slots"
           : "no-character-item-records",
   };
+}
+
+function displaySlotKey(slot, index) {
+  if (slot === "ring" && index === 1) return "ring2";
+  if (slot === "ring" && index > 1) return `ring${index + 1}`;
+  if (slot === "idol" && index > 0) return `idol${index + 1}`;
+  return slot;
 }
 
 function buildUpgradeCandidates(itemCards, activeCharacter) {
@@ -635,6 +647,7 @@ function normalizeFilters(filters) {
 
 function normalizeItemCard(item, index) {
   const decoded = isPlainObject(item.decoded) ? item.decoded : null;
+  const gameItem = isPlainObject(item.gameItem) ? item.gameItem : isPlainObject(decoded?.gameItem) ? decoded.gameItem : null;
   const fingerprint = item.fingerprint ?? decoded?.fingerprint ?? null;
   const dataLength = numberValue(item.dataLength) ?? numberValue(decoded?.byteLength) ?? 0;
   const score = numberValue(item.score);
@@ -651,9 +664,10 @@ function normalizeItemCard(item, index) {
     fingerprint,
     recordPath: item.recordPath ?? decoded?.metadata?.recordPath ?? "",
     locationType: item.locationType ?? decoded?.metadata?.locationType ?? "unknown",
-    equipmentSlot: item.equipmentSlot ?? decoded?.metadata?.equipmentSlot ?? null,
-    itemKind: item.itemKind ?? decoded?.metadata?.itemKind ?? null,
+    equipmentSlot: item.equipmentSlot ?? decoded?.metadata?.equipmentSlot ?? gameItem?.slot ?? null,
+    itemKind: item.itemKind ?? decoded?.metadata?.itemKind ?? gameItem?.itemType?.name ?? null,
     decoderStatus: item.decoderStatus ?? decoded?.decoderStatus ?? "unknown",
+    gameItem,
     score,
     decoded,
   };

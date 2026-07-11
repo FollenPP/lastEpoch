@@ -156,11 +156,6 @@ function renderSnapshotDetail(snapshot, analysis, buildAnalysis) {
     </section>
 
     <section class="section">
-      <h2>Игровой обзор</h2>
-      ${renderGameOverview(game)}
-    </section>
-
-    <section class="section">
       <h2>Анализ билда</h2>
       ${renderBuildAnalysis(buildAnalysis)}
     </section>
@@ -172,35 +167,37 @@ function renderSnapshotDetail(snapshot, analysis, buildAnalysis) {
       </div>
     </section>
 
-    <section class="section">
-      <h2>Персонажи и прокачка</h2>
-      ${renderCharacters(game.characters)}
-    </section>
-
-    <section class="section">
-      <h2>Сундук</h2>
-      ${renderStash(game.stash)}
-    </section>
-
-    <section class="section">
-      <h2>Карточки предметных записей</h2>
-      ${renderItemCards(game.items)}
-    </section>
-
-    <section class="section">
-      <h2>Фильтры добычи</h2>
-      ${renderFilters(game.filters)}
-    </section>
-
-    <section class="section">
-      <h2>Технические файлы</h2>
-      ${renderFilesTable(analysis?.files ?? [])}
-    </section>
-
-    <section class="section">
-      <h2>Raw Snapshot</h2>
-      <pre>${escapeHtml(JSON.stringify(snapshot, null, 2))}</pre>
-    </section>
+    <details class="debugDetails">
+      <summary>Импорт и диагностика</summary>
+      <section class="section">
+        <h2>Игровой обзор</h2>
+        ${renderGameOverview(game)}
+      </section>
+      <section class="section">
+        <h2>Персонажи и прокачка</h2>
+        ${renderCharacters(game.characters)}
+      </section>
+      <section class="section">
+        <h2>Сундук</h2>
+        ${renderStash(game.stash)}
+      </section>
+      <section class="section">
+        <h2>ItemData диагностика</h2>
+        ${renderItemDiagnostics(game.items)}
+      </section>
+      <section class="section">
+        <h2>Фильтры добычи</h2>
+        ${renderFilters(game.filters)}
+      </section>
+      <section class="section">
+        <h2>Технические файлы</h2>
+        ${renderFilesTable(analysis?.files ?? [])}
+      </section>
+      <section class="section">
+        <h2>Raw Snapshot</h2>
+        <pre>${escapeHtml(JSON.stringify(snapshot, null, 2))}</pre>
+      </section>
+    </details>
   `;
 
   document.querySelector("#reanalyzeButton").addEventListener("click", () => reanalyze(snapshot.id));
@@ -231,6 +228,7 @@ function renderGameOverview(game) {
 function renderBuildAnalysis(buildAnalysis) {
   if (!buildAnalysis) return `<p class="muted">Build-анализ пока не создан.</p>`;
   const character = activeCharacter(buildAnalysis.model);
+  const stashCandidates = decodedUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? []);
   return `
     ${renderBuildHero(character, buildAnalysis)}
     <div class="buildDashboard">
@@ -240,10 +238,10 @@ function renderBuildAnalysis(buildAnalysis) {
         <section class="buildPanel">
           <div class="panelHeading">
             <div>
-              <p class="eyebrow">Stash upgrades</p>
+              <p class="eyebrow">Улучшения из сундука</p>
               <h3>Кандидаты на замену</h3>
             </div>
-            <span class="pill info">${displayValue(buildAnalysis.model?.stash?.upgradeCandidates?.length ?? 0)} найдено</span>
+            <span class="pill info">${displayValue(stashCandidates.length)} декодировано</span>
           </div>
           ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
         </section>
@@ -275,7 +273,7 @@ function renderBuildAnalysis(buildAnalysis) {
     <section class="buildPanel">
       <div class="panelHeading">
         <div>
-          <p class="eyebrow">Next steps</p>
+          <p class="eyebrow">Следующие шаги</p>
           <h3>План развития</h3>
         </div>
       </div>
@@ -291,20 +289,21 @@ function activeCharacter(model) {
 
 function renderBuildHero(character, buildAnalysis) {
   const profile = buildAnalysis.model?.knowledge;
-  const archetype = profile?.archetype?.name ?? "архетип уточняется";
-  const mode = character?.hardcore ? "Hardcore" : "Softcore";
+  const archetype = archetypeLabel(profile?.archetype?.name ?? profile?.archetype?.primary);
+  const mode = character?.hardcore ? "Хардкор" : "Софткор";
+  const decodedItems = itemDecodeStats(buildAnalysis.model?.stash?.itemCards ?? []).decoded;
   return `
     <section class="buildHero">
       <div>
-        <p class="eyebrow">Active build</p>
+        <p class="eyebrow">Активный билд</p>
         <h2>${escapeHtml(character?.name ?? "Персонаж не выбран")}</h2>
         <p>${escapeHtml(archetype)} · ${escapeHtml(mode)} · уровень ${displayValue(character?.level)}</p>
       </div>
       <div class="heroStats">
-        ${metric("Confidence", `${buildAnalysis.metrics?.confidence ?? 0}%`)}
-        ${metric("Items", character?.equipment?.rawItemRecords ?? 0)}
-        ${metric("Passives", character?.passiveTree?.nodes ?? 0)}
-        ${metric("Skills", character?.skills?.specializedTrees ?? 0)}
+        ${metric("Уверенность", `${buildAnalysis.metrics?.confidence ?? 0}%`)}
+        ${metric("Предметы", decodedItems)}
+        ${metric("Пассивки", character?.passiveTree?.nodes ?? 0)}
+        ${metric("Навыки", character?.skills?.specializedTrees ?? 0)}
       </div>
     </section>
   `;
@@ -321,7 +320,8 @@ function renderEquipmentBoard(character) {
     ["weapon", "Оружие"],
     ["offhand", "Левая рука"],
     ["gloves", "Перчатки"],
-    ["ring", "Кольцо"],
+    ["ring", "Кольцо I"],
+    ["ring2", "Кольцо II"],
     ["belt", "Пояс"],
     ["boots", "Ботинки"],
     ["relic", "Реликвия"],
@@ -332,7 +332,7 @@ function renderEquipmentBoard(character) {
     <section class="buildPanel">
       <div class="panelHeading">
         <div>
-          <p class="eyebrow">Equipment</p>
+          <p class="eyebrow">Экипировка</p>
           <h3>Экипировка персонажа</h3>
         </div>
         <span class="pill ${equippedItems.length ? "success" : "warning"}">${equipmentStatusLabel(equipment?.status)}</span>
@@ -342,9 +342,19 @@ function renderEquipmentBoard(character) {
         ${metric("Записей", equipment?.rawItemRecords ?? 0)}
         ${metric("Инвентарь", inventoryItems.length)}
       </div>
-      <div class="equipmentBoard">
-        ${slots.map(([slot, label]) => renderEquipmentSlot(slot, label, slotMap[slot])).join("")}
+      <div class="equipmentScene">
+        <div class="equipmentBoard">
+          ${slots.map(([slot, label]) => renderEquipmentSlot(slot, label, slotItem(slotMap, slot))).join("")}
+          <div class="paperDoll" aria-hidden="true">
+            <div class="paperDollHead"></div>
+            <div class="paperDollBody"></div>
+            <div class="paperDollArm left"></div>
+            <div class="paperDollArm right"></div>
+            <div class="paperDollLegs"></div>
+          </div>
+        </div>
       </div>
+      ${equippedItems.length ? `<div class="equippedTooltipGrid">${equippedItems.slice(0, 4).map((item) => renderGameItemCard(item, { compact: true })).join("")}</div>` : ""}
       ${
         equippedItems.length
           ? ""
@@ -354,17 +364,26 @@ function renderEquipmentBoard(character) {
   `;
 }
 
+function slotItem(slotMap, slot) {
+  if (!slotMap) return null;
+  if (slot === "ring2") return slotMap.ring2 ?? slotMap.secondRing ?? slotMap.ringRight ?? null;
+  if (slot === "ring") return slotMap.ring ?? slotMap.ring1 ?? slotMap.ringLeft ?? null;
+  return slotMap[slot] ?? null;
+}
+
 function renderEquipmentSlot(slot, label, item) {
   if (!item) {
     return `
-      <div class="equipmentSlot empty">
+      <div class="equipmentSlot empty slot-${escapeHtml(slot)}">
+        <span class="slotIcon">${slotIcon(slot)}</span>
         <span class="slotLabel">${escapeHtml(label)}</span>
         <span class="emptySlot">пусто</span>
       </div>
     `;
   }
   return `
-    <div class="equipmentSlot filled rarity-${itemRarity(item)}">
+    <div class="equipmentSlot filled slot-${escapeHtml(slot)} rarity-${itemRarity(item)}">
+      <span class="slotIcon">${slotIcon(slot)}</span>
       <span class="slotLabel">${escapeHtml(label)}</span>
       ${renderCompactItemContent(item)}
     </div>
@@ -372,13 +391,14 @@ function renderEquipmentSlot(slot, label, item) {
 }
 
 function renderCompactItemContent(item) {
+  const gameItem = playableItem(item);
   return `
     <div class="compactItemName">${escapeHtml(itemDisplayName(item))}</div>
     <div class="compactItemMeta">
       <span>${rarityLabel(itemRarity(item))}</span>
-      <span>score ${displayValue(item.score)}</span>
+      <span>${affixCountLabel(gameItem?.affixes?.length ?? 0)}</span>
     </div>
-    <div class="compactItemFooter">${escapeHtml(item.fingerprint ?? "без fingerprint")}</div>
+    <div class="compactItemFooter">${gameItem?.forgingPotential === null || gameItem?.forgingPotential === undefined ? "КП ?" : `КП ${gameItem.forgingPotential}`}</div>
   `;
 }
 
@@ -387,7 +407,7 @@ function renderBuildTrees(character) {
     <section class="buildPanel">
       <div class="panelHeading">
         <div>
-          <p class="eyebrow">Skills & passives</p>
+          <p class="eyebrow">Навыки и пассивки</p>
           <h3>Дерево прокачки</h3>
         </div>
         <span class="pill info">${displayValue(character?.passiveTree?.unspentPoints ?? 0)} свободно</span>
@@ -429,7 +449,7 @@ function renderPassiveTree(tree) {
     <div class="treeCard passiveTree">
       <div class="treeHeader">
         <div>
-          <p class="eyebrow">Passive tree ${displayValue(tree?.treeId)}</p>
+          <p class="eyebrow">Пассивное дерево ${displayValue(tree?.treeId)}</p>
           <h4>Пассивки</h4>
         </div>
         <span>${displayValue(nodeTotal)} узлов</span>
@@ -446,7 +466,7 @@ function renderSkillTrees(skills) {
       <div class="treeCard">
         <div class="treeHeader">
           <div>
-            <p class="eyebrow">Specializations</p>
+            <p class="eyebrow">Специализации</p>
             <h4>Скилл-деревья</h4>
           </div>
         </div>
@@ -462,7 +482,7 @@ function renderSkillTrees(skills) {
             <div class="treeCard skillTreeCard">
               <div class="treeHeader">
                 <div>
-                  <p class="eyebrow">Skill tree ${displayValue(tree.treeId ?? index + 1)}</p>
+                  <p class="eyebrow">Дерево навыка ${displayValue(tree.treeId ?? index + 1)}</p>
                   <h4>${escapeHtml(tree.abilityCode ?? `Специализация ${index + 1}`)}</h4>
                 </div>
                 <span>${displayValue(tree.pointsAllocated || tree.nodePoints || tree.nodes)} очков</span>
@@ -491,8 +511,8 @@ function renderTreeNodes(nodeIds, nodePoints, totalCount) {
           const strength = points >= 5 ? "high" : points >= 2 ? "mid" : "low";
           return `
             <div class="treeNode ${strength}" title="Node ${escapeHtml(node)} · ${displayValue(points)} points">
-              <span>${escapeHtml(shortNodeLabel(node))}</span>
-              <small>${Number.isFinite(points) ? points : 1}</small>
+              <span>${Number.isFinite(points) ? points : 1}</span>
+              <small>${index + 1}</small>
             </div>
           `;
         })
@@ -509,6 +529,7 @@ function shortNodeLabel(value) {
 function renderGameItemCard(item, options = {}) {
   const rarity = itemRarity(item);
   const compact = Boolean(options.compact);
+  const gameItem = playableItem(item);
   return `
     <article class="gameItemCard rarity-${rarity} ${compact ? "compact" : ""}">
       <div class="gameItemTop">
@@ -516,17 +537,17 @@ function renderGameItemCard(item, options = {}) {
           <p class="itemRarity">${rarityLabel(rarity)}</p>
           <h3>${escapeHtml(itemDisplayName(item))}</h3>
         </div>
-        <span class="itemScore">${displayValue(item.score)}</span>
+        <span class="itemScore">${escapeHtml(slotIcon(gameItem?.slot ?? item.equipmentSlot ?? item.itemKind))}</span>
       </div>
       <div class="itemMetaLine">
         <span>${locationTypeLabel(item.locationType)}</span>
-        <span>${escapeHtml(slotLabel(item.equipmentSlot ?? item.itemKind))}</span>
+        <span>${escapeHtml(slotLabel(gameItem?.slot ?? item.equipmentSlot ?? item.itemKind))}</span>
         <span>${sourceTypeLabel(item.sourceType)}</span>
       </div>
       ${renderItemAffixes(item)}
       <div class="itemFooter">
-        <span>${escapeHtml(item.fingerprint ?? "no fingerprint")}</span>
-        <span>${decoderStatusLabel(item.decoderStatus)}</span>
+        <span>${gameItem?.forgingPotential === null || gameItem?.forgingPotential === undefined ? "Кузнечный потенциал ?" : `Кузнечный потенциал ${gameItem.forgingPotential}`}</span>
+        <span>${decoderStatusLabel(item.decoderStatus)}${gameItem?.confidence ? ` · ${confidenceLabel(gameItem.confidence)}` : ""}</span>
       </div>
       ${options.compare ? renderItemComparison(item) : ""}
     </article>
@@ -534,6 +555,32 @@ function renderGameItemCard(item, options = {}) {
 }
 
 function renderItemAffixes(item) {
+  const gameItem = playableItem(item);
+  if (gameItem) {
+    return `
+      <div class="tooltipBlock">
+        <div class="implicitLine">${escapeHtml(itemTypeLabel(gameItem.itemType?.name))} · ${escapeHtml(baseLabel(gameItem.baseName))}</div>
+        ${gameItem.implicits?.length ? `<div class="implicitList">${gameItem.implicits.slice(0, 3).map((implicit) => `<span>${escapeHtml(localizeGameText(implicit.label))} ${displayValue(implicit.rollPercent)}%</span>`).join("")}</div>` : ""}
+      </div>
+      <div class="affixList">
+        ${
+          gameItem.affixes?.length
+            ? gameItem.affixes
+                .map(
+                  (affix) => `
+                    <div class="affixRow ${affix.tier >= 6 ? "exaltedAffix" : ""}">
+                      <span>T${displayValue(affix.tier)} · ${escapeHtml(localizeGameText(affix.label))}</span>
+                      <strong>${displayValue(affix.rollPercent)}%</strong>
+                    </div>
+                  `,
+                )
+                .join("")
+            : `<div class="affixRow emptyAffix"><span>Аффиксов нет</span><strong>${escapeHtml(rarityLabel(gameItem.rarity?.id ?? "normal"))}</strong></div>`
+        }
+      </div>
+    `;
+  }
+
   const fields = item.decoded?.metadata?.directFields ?? {};
   const directRows = Object.entries(fields).slice(0, 5);
   if (directRows.length) {
@@ -546,10 +593,9 @@ function renderItemAffixes(item) {
     `;
   }
   return `
-    <div class="affixList locked">
-      <div class="affixRow"><span>Base / affixes</span><strong>нужен itemData mapping</strong></div>
-      <div class="affixRow"><span>Raw data</span><strong>${displayValue(item.dataLength)} bytes</strong></div>
-      <div class="affixRow"><span>Hex</span><strong>${escapeHtml(item.decoded?.previewHex ?? "нет")}</strong></div>
+    <div class="affixList locked unresolvedTooltip">
+      <div class="affixRow"><span>Не расшифровано</span><strong>${displayValue(item.dataLength)} bytes</strong></div>
+      <div class="affixRow"><span>Причина</span><strong>нет карты itemData для этой версии</strong></div>
     </div>
   `;
 }
@@ -565,6 +611,9 @@ function renderItemComparison(item) {
 }
 
 function itemDisplayName(item) {
+  const gameItem = playableItem(item);
+  if (gameItem) return gameItemDisplayName(gameItem);
+
   const fields = item.decoded?.metadata?.directFields ?? {};
   const base =
     fields.uniqueID ??
@@ -576,11 +625,14 @@ function itemDisplayName(item) {
     item.equipmentSlot ??
     item.itemKind;
   const label = slotLabel(base);
-  const fingerprint = item.fingerprint ? ` #${String(item.fingerprint).slice(0, 6)}` : "";
-  return `${label}${fingerprint}`;
+  if (label && label !== "не найдено") return `${label} · itemData`;
+  return "ItemData не расшифрован";
 }
 
 function itemRarity(item) {
+  const gameItem = playableItem(item);
+  if (gameItem?.rarity?.id) return gameItem.rarity.id;
+
   const fields = item.decoded?.metadata?.directFields ?? {};
   const signal = `${fields.rarity ?? ""} ${fields.uniqueID ?? ""} ${fields.uniqueId ?? ""} ${item.sourceName ?? ""} ${item.recordPath ?? ""}`.toLowerCase();
   if (signal.includes("legendary")) return "legendary";
@@ -597,15 +649,95 @@ function itemRarity(item) {
 function rarityLabel(rarity) {
   return (
     {
-      legendary: "Legendary",
-      unique: "Unique",
-      set: "Set",
-      exalted: "Exalted",
-      rare: "Rare",
-      magic: "Magic",
-      normal: "Item",
-    }[rarity] ?? "Item"
+      legendary: "Легендарный",
+      unique: "Уникальный",
+      set: "Сетовый",
+      exalted: "Возвышенный",
+      rare: "Редкий",
+      magic: "Магический",
+      normal: "Предмет",
+    }[rarity] ?? "Предмет"
   );
+}
+
+function gameItemDisplayName(gameItem) {
+  const type = itemTypeLabel(gameItem.itemType?.name);
+  const base = baseLabel(gameItem.baseName);
+  if (type !== "Предмет" && base !== "база неизвестна") return `${type} · ${base}`;
+  return localizeGameText(gameItem.name ?? gameItem.baseName ?? gameItem.itemType?.name ?? "Предмет");
+}
+
+function itemTypeLabel(value) {
+  return (
+    {
+      Helmets: "Шлем",
+      "Body Armours": "Броня",
+      Belts: "Пояс",
+      Boots: "Ботинки",
+      Gloves: "Перчатки",
+      "1H Axes": "Одноручный топор",
+      Daggers: "Кинжал",
+      "1H Blunt Weapons": "Одноручная булава",
+      Sceptres: "Скипетр",
+      "1H Swords": "Одноручный меч",
+      Wands: "Жезл",
+      Fists: "Кастет",
+      "2H Axes": "Двуручный топор",
+      "2H Blunt Weapons": "Двуручная булава",
+      Polearms: "Древковое",
+      Staffs: "Посох",
+      "2H Swords": "Двуручный меч",
+      Quivers: "Колчан",
+      Shields: "Щит",
+      Catalysts: "Катализатор",
+      Amulets: "Амулет",
+      Rings: "Кольцо",
+      Relics: "Реликвия",
+      Bows: "Лук",
+      Crossbows: "Арбалет",
+      "Small Eterran Idols": "Малый этерранский идол",
+      "Small Lagonian Idols": "Малый лагонианский идол",
+      "Humble Eterran Idols": "Скромный этерранский идол",
+      "Stout Lagonian Idols": "Крепкий лагонианский идол",
+      "Grand Idols": "Большой идол",
+      "Large Idols": "Крупный идол",
+      "Ornate Idols": "Украшенный идол",
+      "Huge Idols": "Огромный идол",
+      "Adorned Idols": "Изысканный идол",
+      Blessings: "Благословение",
+    }[value] ?? localizeGameText(value ?? "Предмет")
+  );
+}
+
+function baseLabel(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "база неизвестна";
+  const match = text.match(/^Base\s+(\d+)$/i);
+  if (match) return `база ${match[1]}`;
+  return localizeGameText(text);
+}
+
+function localizeGameText(value) {
+  const text = String(value ?? "");
+  return text
+    .replace(/^Affix\s+(\d+)$/i, "Аффикс $1")
+    .replace(/^Implicit\s+(\d+)$/i, "Имплицит $1")
+    .replace(/\bbase\s+(\d+)\b/gi, "база $1")
+    .replace(/\bUnknown item\b/gi, "Предмет");
+}
+
+function affixCountLabel(count) {
+  const number = Number(count ?? 0);
+  return `${Number.isFinite(number) ? number : 0} ${pluralRu(number, "аффикс", "аффикса", "аффиксов")}`;
+}
+
+function pluralRu(number, one, few, many) {
+  const normalized = Math.abs(Number(number ?? 0));
+  const mod10 = normalized % 10;
+  const mod100 = normalized % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
 }
 
 function slotLabel(value) {
@@ -619,11 +751,54 @@ function slotLabel(value) {
       relic: "Реликвия",
       amulet: "Амулет",
       ring: "Кольцо",
+      ring2: "Кольцо",
       weapon: "Оружие",
       offhand: "Левая рука",
       idol: "Идол",
     }[value] ?? displayValue(value)
   );
+}
+
+function slotIcon(value) {
+  return (
+    {
+      helmet: "HE",
+      body: "AR",
+      gloves: "GL",
+      boots: "BO",
+      belt: "BE",
+      relic: "RE",
+      amulet: "AM",
+      ring: "RI",
+      ring2: "RI",
+      weapon: "WE",
+      offhand: "OH",
+      idol: "ID",
+      blessing: "BL",
+    }[value] ?? "IT"
+  );
+}
+
+function playableItem(item) {
+  return item?.gameItem ?? item?.decoded?.gameItem ?? null;
+}
+
+function isPlayableItem(item) {
+  return Boolean(playableItem(item));
+}
+
+function decodedUpgradeCandidates(candidates) {
+  return (candidates ?? []).filter(isPlayableItem);
+}
+
+function itemDecodeStats(cards) {
+  const all = cards ?? [];
+  const decoded = all.filter(isPlayableItem).length;
+  return {
+    total: all.length,
+    decoded,
+    raw: Math.max(0, all.length - decoded),
+  };
 }
 
 function scoreRow(label, value) {
@@ -645,7 +820,7 @@ function renderBuildProfile(profile, gameData) {
     <section class="sidePanel buildProfile">
       <h3>Профиль билда</h3>
       <div class="cardGrid smallCards">
-        ${infoCard("Архетип", profile.archetype?.name ?? "не распознан", `Уверенность game-data слоя: ${Math.round((profile.confidence ?? 0) * 100)}%.`)}
+        ${infoCard("Архетип", archetypeLabel(profile.archetype?.name ?? profile.archetype?.primary), `Уверенность game-data слоя: ${Math.round((profile.confidence ?? 0) * 100)}%.`)}
         ${infoCard("Фаза", profile.phase === "endgame" ? "endgame" : "прокачка", `База знаний: ${gameData?.version ?? profile.version ?? "starter"}.`)}
         ${infoCard("Damage tags", profile.tags?.damage?.join(", ") || "не найдены", "Теги из активных навыков, по которым стоит фильтровать урон и идолы.")}
         ${infoCard("Utility", profile.tags?.utility?.join(", ") || "не найдена", "Movement/sustain/utility сигналы из skill bar.")}
@@ -732,12 +907,19 @@ function renderPlan(steps) {
 }
 
 function renderUpgradeCandidates(candidates) {
-  if (!candidates.length) {
-    return `<p class="muted">Кандидаты появятся после расшифровки itemData или когда stash содержит предметные записи.</p>`;
+  const decoded = decodedUpgradeCandidates(candidates);
+  if (!decoded.length) {
+    const stats = itemDecodeStats(candidates);
+    return `
+      <div class="decodeNotice">
+        <strong>Нет пригодных item tooltip для сравнения.</strong>
+        <p>В stash найдено записей: ${stats.total}, но расшифровано как игровые предметы: ${stats.decoded}. Сырые itemData больше не показываются как апгрейды, потому что по ним нельзя принять решение.</p>
+      </div>
+    `;
   }
   return `
     <div class="gameItemGrid">
-      ${candidates.slice(0, 12).map((item) => renderGameItemCard(item, { compare: true })).join("")}
+      ${decoded.slice(0, 12).map((item) => renderGameItemCard(item, { compare: true })).join("")}
     </div>
   `;
 }
@@ -755,7 +937,7 @@ function renderCharacters(characters) {
                   <p class="eyebrow">${escapeHtml(character.file)}</p>
                   <h3>${escapeHtml(character.name ?? "Без имени")}</h3>
                 </div>
-                <span class="pill ${character.hardcore ? "warning" : "info"}">${character.hardcore ? "Hardcore" : "Softcore"}</span>
+                <span class="pill ${character.hardcore ? "warning" : "info"}">${character.hardcore ? "Хардкор" : "Софткор"}</span>
               </div>
               <div class="kvGrid">
                 ${kv("Уровень", displayValue(character.level))}
@@ -841,16 +1023,24 @@ function renderStash(stash) {
   `;
 }
 
-function renderItemCards(items) {
+function renderItemDiagnostics(items) {
   const cards = items?.cards ?? [];
+  const stats = itemDecodeStats(cards);
   if (!cards.length) {
-    return `<p class="muted">Предметные записи пока не распознаны. После маппинга itemData здесь появятся базы, аффиксы и сравнение апгрейдов.</p>`;
+    return `<p class="muted">Предметные записи пока не найдены.</p>`;
   }
   return `
-    <p class="muted">Найдено записей: ${items.totalRecords}. Карточки уже разложены как игровые предметы; неизвестные base/affix поля отмечены до подключения полного itemData mapping.</p>
-    <div class="gameItemGrid">
-      ${cards.map((card) => renderGameItemCard(card)).join("")}
+    <div class="decodeSummary">
+      ${metric("ItemData записей", items.totalRecords ?? cards.length)}
+      ${metric("Расшифровано", stats.decoded)}
+      ${metric("Ждет декодер", stats.raw)}
     </div>
+    <p class="muted">Сырые записи скрыты из основного интерфейса. Они нужны только для калибровки декодера под текущую версию Last Epoch.</p>
+    ${
+      stats.decoded
+        ? `<div class="gameItemGrid">${cards.filter(isPlayableItem).slice(0, 12).map((card) => renderGameItemCard(card)).join("")}</div>`
+        : `<div class="decodeNotice"><strong>0 игровых карточек.</strong><p>Сейв и stash выгружены, но формат itemData этой версии пока не сопоставлен с базами/аффиксами. Следующий технический шаг - подключить актуальную базу данных предметов или декодер текущего формата.</p></div>`
+    }
   `;
 }
 
@@ -1039,10 +1229,36 @@ function sourceTypeLabel(value) {
 function decoderStatusLabel(value) {
   return (
     {
-      "raw-bytes": "raw bytes",
-      "metadata-only": "metadata only",
-      empty: "empty",
-      unknown: "unknown",
+      "decoded-item": "предмет распознан",
+      "raw-bytes": "сырые байты",
+      "metadata-only": "только метаданные",
+      empty: "пусто",
+      unknown: "неизвестно",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function confidenceLabel(value) {
+  return (
+    {
+      high: "высокая уверенность",
+      medium: "средняя уверенность",
+      "medium-low": "ниже средней",
+      low: "низкая уверенность",
+    }[value] ?? displayValue(value)
+  );
+}
+
+function archetypeLabel(value) {
+  return (
+    {
+      "hit damage": "hit-урон",
+      hit: "hit-урон",
+      "hit-caster": "hit-кастер",
+      dot: "DoT",
+      ailment: "состояния",
+      minion: "миньоны",
+      unknown: "архетип уточняется",
     }[value] ?? displayValue(value)
   );
 }
@@ -1063,9 +1279,9 @@ function locationTypeLabel(value) {
 function comparisonStatusLabel(value) {
   return (
     {
-      "comparable-slot": "slot match",
-      "no-slot-match": "no slot match",
-      "no-equipped-baseline": "no baseline",
+      "comparable-slot": "тот же слот",
+      "no-slot-match": "слот не сопоставлен",
+      "no-equipped-baseline": "нет базового предмета",
     }[value] ?? displayValue(value)
   );
 }

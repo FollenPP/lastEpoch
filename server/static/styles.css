@@ -281,7 +281,7 @@ h3 {
 
 .buildDashboard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -290,6 +290,10 @@ h3 {
 .buildAside {
   display: grid;
   gap: 16px;
+}
+
+.buildAside {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .buildPanel,
@@ -325,11 +329,87 @@ h3 {
   margin-bottom: 0;
 }
 
+.equipmentScene {
+  position: relative;
+  display: block;
+  margin-top: 12px;
+  border: 1px solid #2e3744;
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(240, 191, 90, 0.08), transparent 24%),
+    linear-gradient(180deg, #111720, #0d1016);
+  padding: 12px;
+}
+
 .equipmentBoard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(154px, 1fr));
+  grid-template-columns: minmax(124px, 0.78fr) minmax(124px, 0.78fr) minmax(240px, 1.15fr) minmax(124px, 0.78fr) minmax(124px, 0.78fr);
+  grid-template-areas:
+    "helmet amulet doll ring relic"
+    "gloves weapon doll offhand belt"
+    "body weapon doll offhand boots"
+    "idol idol doll ring2 ring2";
   gap: 10px;
-  margin-top: 12px;
+  align-items: stretch;
+}
+
+.paperDoll {
+  grid-area: doll;
+  position: relative;
+  min-height: 500px;
+  border: 1px solid #2c3440;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    #0c1016;
+}
+
+.paperDollHead,
+.paperDollBody,
+.paperDollArm,
+.paperDollLegs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 1px solid #455164;
+  background: linear-gradient(180deg, #1c2734, #101720);
+  box-shadow: inset 0 0 22px rgba(103, 183, 255, 0.08);
+}
+
+.paperDollHead {
+  top: 54px;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+}
+
+.paperDollBody {
+  top: 138px;
+  width: 126px;
+  height: 174px;
+  border-radius: 46px 46px 18px 18px;
+}
+
+.paperDollArm {
+  top: 158px;
+  width: 44px;
+  height: 146px;
+  border-radius: 26px;
+}
+
+.paperDollArm.left {
+  margin-left: -108px;
+}
+
+.paperDollArm.right {
+  margin-left: 108px;
+}
+
+.paperDollLegs {
+  top: 320px;
+  width: 116px;
+  height: 142px;
+  border-radius: 16px 16px 42px 42px;
 }
 
 .equipmentSlot {
@@ -338,6 +418,54 @@ h3 {
   border-radius: 7px;
   background: #11151b;
   padding: 10px;
+}
+
+.slot-helmet {
+  grid-area: helmet;
+}
+
+.slot-amulet {
+  grid-area: amulet;
+}
+
+.slot-body {
+  grid-area: body;
+}
+
+.slot-weapon {
+  grid-area: weapon;
+}
+
+.slot-offhand {
+  grid-area: offhand;
+}
+
+.slot-gloves {
+  grid-area: gloves;
+}
+
+.slot-ring {
+  grid-area: ring;
+}
+
+.slot-ring2 {
+  grid-area: ring2;
+}
+
+.slot-belt {
+  grid-area: belt;
+}
+
+.slot-boots {
+  grid-area: boots;
+}
+
+.slot-relic {
+  grid-area: relic;
+}
+
+.slot-idol {
+  grid-area: idol;
 }
 
 .equipmentSlot.empty {
@@ -351,6 +479,19 @@ h3 {
   display: grid;
   gap: 8px;
   border-color: #576072;
+}
+
+.slotIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #3a4554;
+  border-radius: 6px;
+  background: #0b0f15;
+  color: #f0bf5a;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .slotLabel {
@@ -397,6 +538,13 @@ h3 {
 .compactItemFooter,
 .itemFooter {
   overflow-wrap: anywhere;
+}
+
+.equippedTooltipGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .skillBar {
@@ -463,13 +611,37 @@ h3 {
 }
 
 .treeBoard {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 9px;
+  overflow: hidden;
+  border: 1px solid #283447;
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(103, 183, 255, 0.09), transparent 38%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    #0d1219;
+  background-size: auto, 56px 56px, 56px 56px, auto;
+  padding: 13px;
+}
+
+.treeBoard::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(240, 191, 90, 0.14);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 42px rgba(103, 183, 255, 0.025),
+    inset 0 0 42px rgba(240, 191, 90, 0.06);
+  pointer-events: none;
 }
 
 .treeNode {
   position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   aspect-ratio: 1;
@@ -480,16 +652,19 @@ h3 {
   color: #dbe6f3;
   font-size: 11px;
   font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.025), inset 0 0 18px rgba(255, 255, 255, 0.04);
 }
 
 .treeNode.mid {
   border-color: #67b7ff;
   background: #15304a;
+  box-shadow: 0 0 14px rgba(103, 183, 255, 0.22), inset 0 0 18px rgba(103, 183, 255, 0.08);
 }
 
 .treeNode.high {
   border-color: #f0bf5a;
   background: #3a2a12;
+  box-shadow: 0 0 18px rgba(240, 191, 90, 0.24), inset 0 0 18px rgba(240, 191, 90, 0.1);
 }
 
 .treeNode small {
@@ -543,10 +718,32 @@ h3 {
   min-width: 42px;
   height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 50%;
+  border-radius: 7px;
   background: #0c1016;
-  font-size: 15px;
+  color: #f0bf5a;
+  font-size: 12px;
   font-weight: 900;
+}
+
+.tooltipBlock {
+  margin: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 9px 0;
+}
+
+.implicitLine {
+  color: #d7e4f3;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.implicitList {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .affixList {
@@ -574,6 +771,15 @@ h3 {
 .affixRow strong {
   overflow-wrap: anywhere;
   font-size: 12px;
+}
+
+.affixRow.exaltedAffix {
+  border-color: rgba(215, 131, 255, 0.45);
+  background: rgba(215, 131, 255, 0.08);
+}
+
+.affixRow.emptyAffix {
+  opacity: 0.75;
 }
 
 .affixList.locked .affixRow {
@@ -657,6 +863,50 @@ h3 {
 .scoreRow strong {
   color: var(--text);
   text-align: right;
+}
+
+.decodeSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.decodeNotice {
+  border: 1px solid #57451f;
+  border-radius: var(--radius);
+  background: #181511;
+  padding: 12px;
+}
+
+.decodeNotice strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #ffd98a;
+}
+
+.decodeNotice p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.debugDetails {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #131821;
+  padding: 12px;
+}
+
+.debugDetails > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.debugDetails[open] > summary {
+  margin-bottom: 14px;
+  color: var(--text);
 }
 
 .metric {
@@ -909,6 +1159,26 @@ pre {
   .buildDashboard,
   .treeLayout {
     grid-template-columns: 1fr;
+  }
+
+  .buildAside {
+    grid-template-columns: 1fr;
+  }
+
+  .equipmentBoard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "doll doll"
+      "helmet amulet"
+      "weapon offhand"
+      "body gloves"
+      "belt boots"
+      "ring ring2"
+      "relic idol";
+  }
+
+  .paperDoll {
+    min-height: 320px;
   }
 
   .skillBar {

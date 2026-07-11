@@ -35,6 +35,31 @@ test("decodeItemRecord extracts raw bytes, metadata, and stable identity", () =>
   assert.ok(estimateRawItemScore(first) > 40);
 });
 
+test("decodeItemRecord maps legacy item arrays into game item fields", () => {
+  const decoded = decodeItemRecord({
+    data: [1, 21, 2, 4, 200, 0, 0, 42, 2, 80, 12, 220, 16, 33, 128, 0],
+    quantity: 1,
+    containerID: 9,
+    inventoryPosition: { x: 3, y: 4 },
+  });
+
+  assert.equal(decoded.decoderStatus, "decoded-item");
+  assert.equal(decoded.metadata.equipmentSlot, "ring");
+  assert.equal(decoded.gameItem.itemType.name, "Rings");
+  assert.equal(decoded.gameItem.slot, "ring");
+  assert.equal(decoded.gameItem.rarity.id, "exalted");
+  assert.equal(decoded.gameItem.forgingPotential, 42);
+  assert.equal(decoded.gameItem.affixes.length, 2);
+  assert.deepEqual(decoded.gameItem.affixes[0], {
+    tier: 6,
+    typeMod: 0,
+    affixId: 12,
+    roll: 220,
+    rollPercent: 86,
+    label: "Affix 12",
+  });
+});
+
 test("decodeItemRecord handles metadata-only records", () => {
   const decoded = decodeItemRecord({ quantity: 1, containerID: 3 }, { source: "Saves/1CHARACTERSLOT_BETA_0" });
 

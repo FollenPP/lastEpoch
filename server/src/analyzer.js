@@ -476,6 +476,7 @@ function buildItemCards(files) {
         dataLength: decoded.byteLength,
         fingerprint: decoded.fingerprint,
         decoderStatus: decoded.decoderStatus,
+        gameItem: decoded.gameItem,
         score: estimateRawItemScore(decoded),
         decoded,
       });
