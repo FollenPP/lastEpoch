@@ -23,6 +23,7 @@ def main() -> None:
     copy_file(ROOT / "decky-plugin" / "main.py", PACKAGE_ROOT / "main.py")
     copy_file(ROOT / "decky-plugin" / "plugin.json", PACKAGE_ROOT / "plugin.json")
     copy_file(ROOT / "decky-plugin" / "package.json", PACKAGE_ROOT / "package.json")
+    copy_file(ROOT / "decky-plugin" / "default-settings.json", PACKAGE_ROOT / "default-settings.json")
     copy_file(ROOT / "decky-plugin" / "README.md", PACKAGE_ROOT / "README.md")
     copy_file(ROOT / "decky-plugin" / "LICENSE", PACKAGE_ROOT / "LICENSE")
     copy_file(ROOT / "scripts" / "install-on-steam-deck.sh", RELEASE_ROOT / "install-on-steam-deck.sh")

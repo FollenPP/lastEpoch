@@ -33,8 +33,10 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.6"
+PLUGIN_VERSION = "0.1.7"
+SETTINGS_VERSION = 2
 DEFAULT_SERVER_URL = "http://185.201.28.103"
+REMOTE_CONFIG_URL = "https://raw.githubusercontent.com/FollenPP/lastEpoch/master/decky-plugin/default-settings.json"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
 PLUGIN_ARCHIVE_DIR = "last-epoch-companion"
@@ -73,6 +75,12 @@ class Plugin:
 
     async def import_setup_file(self):
         return await asyncio.to_thread(_import_setup_file)
+
+    async def reset_server_url(self):
+        return await asyncio.to_thread(_reset_server_url)
+
+    async def sync_server_config(self):
+        return await asyncio.to_thread(_sync_server_config)
 
     async def ping_server(self):
         settings = await asyncio.to_thread(_read_settings)
@@ -120,7 +128,9 @@ def _settings_path():
 
 def _default_settings():
     return {
+        "settingsVersion": SETTINGS_VERSION,
         "serverUrl": DEFAULT_SERVER_URL,
+        "serverUrlSource": "default",
         "pairingToken": "",
         "savesRoot": str(DEFAULT_SAVES_ROOT),
         "filtersRoot": str(DEFAULT_FILTERS_ROOT),
@@ -139,9 +149,11 @@ def _read_settings():
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return _default_settings()
+    loaded_version = _settings_version(loaded)
     settings = {**_default_settings(), **loaded}
-    if not str(settings.get("serverUrl", "")).strip() or "adlethome" in str(settings.get("serverUrl", "")):
-        settings["serverUrl"] = DEFAULT_SERVER_URL
+    settings, changed = _normalize_settings(settings, loaded_version=loaded_version)
+    if changed:
+        _persist_settings(settings)
     return settings
 
 
@@ -149,7 +161,9 @@ def _write_settings(settings):
     current = _read_settings()
     next_settings = {
         **current,
+        "settingsVersion": SETTINGS_VERSION,
         "serverUrl": str(settings.get("serverUrl", current["serverUrl"])).strip(),
+        "serverUrlSource": str(settings.get("serverUrlSource", current.get("serverUrlSource", "manual"))).strip(),
         "pairingToken": str(settings.get("pairingToken", current["pairingToken"])).strip(),
         "savesRoot": str(settings.get("savesRoot", current["savesRoot"])).strip(),
         "filtersRoot": str(settings.get("filtersRoot", current["filtersRoot"])).strip(),
@@ -158,10 +172,59 @@ def _write_settings(settings):
         "pairingRequestId": str(settings.get("pairingRequestId", current["pairingRequestId"])).strip(),
         "pairingCode": str(settings.get("pairingCode", current["pairingCode"])).strip(),
     }
+    next_settings, _ = _normalize_settings(next_settings, migrate_legacy=False)
+    _persist_settings(next_settings)
+    return next_settings
+
+
+def _normalize_settings(settings, migrate_legacy=True, loaded_version=None):
+    changed = False
+    next_settings = {**settings}
+    server_url = str(next_settings.get("serverUrl", "")).strip()
+    version_for_migration = _settings_version(next_settings) if loaded_version is None else loaded_version
+
+    if not server_url or "adlethome" in server_url:
+        next_settings = _with_server_url(next_settings, DEFAULT_SERVER_URL, "default-migration")
+        changed = True
+    elif migrate_legacy and version_for_migration < SETTINGS_VERSION and server_url.rstrip("/") != DEFAULT_SERVER_URL:
+        next_settings = _with_server_url(next_settings, DEFAULT_SERVER_URL, "legacy-migration")
+        changed = True
+
+    if _settings_version(next_settings) != SETTINGS_VERSION:
+        next_settings["settingsVersion"] = SETTINGS_VERSION
+        changed = True
+
+    if not str(next_settings.get("serverUrlSource", "")).strip():
+        next_settings["serverUrlSource"] = "default"
+        changed = True
+
+    return next_settings, changed
+
+
+def _settings_version(settings):
+    try:
+        return int(settings.get("settingsVersion") or 0)
+    except Exception:
+        return 0
+
+
+def _with_server_url(settings, server_url, source):
+    return {
+        **settings,
+        "settingsVersion": SETTINGS_VERSION,
+        "serverUrl": str(server_url).strip().rstrip("/"),
+        "serverUrlSource": source,
+        "pairingToken": "",
+        "lastSnapshotId": "",
+        "pairingRequestId": "",
+        "pairingCode": "",
+    }
+
+
+def _persist_settings(settings):
     path = _settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(next_settings, indent=2), encoding="utf-8")
-    return next_settings
+    path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
 
 def _import_setup_file():
@@ -184,6 +247,30 @@ def _import_setup_file():
         raise ValueError("Setup file does not include serverUrl.")
 
     return _write_settings(imported)
+
+
+def _reset_server_url():
+    current = _read_settings()
+    return _write_settings(_with_server_url(current, DEFAULT_SERVER_URL, "default-button"))
+
+
+def _sync_server_config():
+    current = _read_settings()
+    request = urllib.request.Request(
+        REMOTE_CONFIG_URL,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": f"LastEpochCompanionDecky/{PLUGIN_VERSION}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        remote = json.loads(response.read().decode("utf-8"))
+
+    server_url = str(remote.get("serverUrl", "")).strip()
+    if not server_url.startswith(("http://", "https://")):
+        raise ValueError("Remote config does not include a valid serverUrl.")
+
+    return _write_settings(_with_server_url(current, server_url, "github-config"))
 
 
 def _ping_server(settings):
@@ -379,7 +466,7 @@ def _find_plugin_source_dir(extract_dir):
 
 
 def _copy_plugin_files(source_dir, target_dir):
-    for name in ["plugin.json", "package.json", "main.py", "README.md", "LICENSE"]:
+    for name in ["plugin.json", "package.json", "main.py", "default-settings.json", "README.md", "LICENSE"]:
         source = source_dir / name
         if source.exists():
             shutil.copy2(source, target_dir / name)

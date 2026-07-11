@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { FaCloudUploadAlt } from "react-icons/fa";
 
 type Settings = {
+  settingsVersion: number;
   serverUrl: string;
+  serverUrlSource: string;
   pairingToken: string;
   savesRoot: string;
   filtersRoot: string;
@@ -47,6 +49,8 @@ type UpdateInfo = {
 const getSettings = callable<[], Settings>("get_settings");
 const saveSettings = callable<[settings: Settings], Settings>("save_settings");
 const importSetupFile = callable<[], Settings>("import_setup_file");
+const resetServerUrl = callable<[], Settings>("reset_server_url");
+const syncServerConfig = callable<[], Settings>("sync_server_config");
 const pingServer = callable<[], { ok: boolean }>("ping_server");
 const startPairing = callable<[], { id: string; code: string; status: string; expiresAt: string }>("start_pairing");
 const checkPairing = callable<[], { id: string; code: string; status: string; deviceToken?: string | null }>("check_pairing");
@@ -60,11 +64,13 @@ const backendSelfTest = callable<[], { ok: boolean; version: string; serverUrl: 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
 const defaultServerUrl = "http://185.201.28.103";
-const pluginVersion = "0.1.6";
+const pluginVersion = "0.1.7";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({
+    settingsVersion: 2,
     serverUrl: defaultServerUrl,
+    serverUrlSource: "default",
     pairingToken: "",
     savesRoot: defaultSavesRoot,
     filtersRoot: defaultFiltersRoot,
@@ -226,6 +232,34 @@ function Content() {
     }
   };
 
+  const useVpsServer = async () => {
+    setBusy(true);
+    setStatus("Switching to VPS server...");
+    try {
+      const saved = await resetServerUrl();
+      setSettings(saved);
+      setStatus("Server reset to VPS. Start pairing again.");
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncServerFromGitHub = async () => {
+    setBusy(true);
+    setStatus("Syncing server config from GitHub...");
+    try {
+      const saved = await syncServerConfig();
+      setSettings(saved);
+      setStatus(`Server synced: ${saved.serverUrl}. Start pairing again.`);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const checkForUpdates = async () => {
     setBusy(true);
     setStatus("Checking GitHub releases...");
@@ -315,7 +349,13 @@ function Content() {
           <ActionField label="Load Setup File" description="Read settings from Downloads" disabled={busy} onAction={loadSetup} />
         </PanelSectionRow>
         <PanelSectionRow>
-          <Field label="Server" description={settings.serverUrl} focusable={false} />
+          <Field label="Server" description={`${settings.serverUrl} (${settings.serverUrlSource || "manual"})`} focusable={false} />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionField label="Use VPS Server" description={defaultServerUrl} disabled={busy} onAction={useVpsServer} />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionField label="Sync Server Config" description="Read default URL from GitHub" disabled={busy} onAction={syncServerFromGitHub} />
         </PanelSectionRow>
         <PanelSectionRow>
           <Field label="Device token" description={settings.pairingToken ? "Paired" : "Not paired"} focusable={false} />
