@@ -22,14 +22,18 @@ except Exception:  # pragma: no cover - local editor fallback only
             print(message)
 
     class _DeckyFallback:
-        DECKY_SETTINGS_DIR = os.path.join(Path.home(), ".config", "last-epoch-companion")
         DECKY_USER_HOME = str(Path.home())
+        DECKY_HOME = str(Path.home() / "homebrew")
+        DECKY_PLUGIN_DIR = os.getcwd()
+        DECKY_PLUGIN_SETTINGS_DIR = os.path.join(Path.home(), ".config", "last-epoch-companion")
+        DECKY_PLUGIN_RUNTIME_DIR = os.path.join(Path.home(), ".local", "share", "last-epoch-companion")
+        DECKY_PLUGIN_LOG_DIR = os.path.join(Path.home(), ".local", "state", "last-epoch-companion")
         logger = _Logger()
 
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.5"
+PLUGIN_VERSION = "0.1.6"
 DEFAULT_SERVER_URL = "http://185.201.28.103"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
@@ -41,11 +45,22 @@ DEFAULT_FILTERS_ROOT = DEFAULT_GAME_ROOT / "Filters"
 DEFAULT_SETUP_FILE = Path(decky.DECKY_USER_HOME) / "Downloads" / "last-epoch-companion-settings.json"
 MAX_FILE_BYTES = 25 * 1024 * 1024
 
+PLUGIN_SETTINGS_DIR = Path(
+    getattr(
+        decky,
+        "DECKY_PLUGIN_SETTINGS_DIR",
+        getattr(decky, "DECKY_SETTINGS_DIR", Path(decky.DECKY_USER_HOME) / ".config" / "last-epoch-companion"),
+    )
+)
+PLUGIN_DIR = Path(getattr(decky, "DECKY_PLUGIN_DIR", Path(__file__).resolve().parent))
+
 
 class Plugin:
     async def _main(self):
-        Path(decky.DECKY_SETTINGS_DIR).mkdir(parents=True, exist_ok=True)
-        decky.logger.info("Last Epoch Companion loaded")
+        PLUGIN_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        decky.logger.info(f"Last Epoch Companion loaded v{PLUGIN_VERSION}")
+        decky.logger.info(f"Settings dir: {PLUGIN_SETTINGS_DIR}")
+        decky.logger.info(f"Plugin dir: {PLUGIN_DIR}")
 
     async def _unload(self):
         decky.logger.info("Last Epoch Companion unloaded")
@@ -100,7 +115,7 @@ class Plugin:
 
 
 def _settings_path():
-    return Path(decky.DECKY_SETTINGS_DIR) / "last-epoch-companion.json"
+    return PLUGIN_SETTINGS_DIR / "last-epoch-companion.json"
 
 
 def _default_settings():
@@ -320,7 +335,7 @@ def _install_latest_update():
             archive.extractall(extract_dir)
 
         source_dir = _find_plugin_source_dir(extract_dir)
-        target_dir = Path(__file__).resolve().parent
+        target_dir = PLUGIN_DIR
         _copy_plugin_files(source_dir, target_dir)
 
     return {**update, "installed": True, "requiresRestart": True}

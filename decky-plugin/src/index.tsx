@@ -60,6 +60,7 @@ const backendSelfTest = callable<[], { ok: boolean; version: string; serverUrl: 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
 const defaultServerUrl = "http://185.201.28.103";
+const pluginVersion = "0.1.6";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({
@@ -408,6 +409,7 @@ function ActionField({ label, description, disabled, onAction }: ActionFieldProp
 
 export default definePlugin(() => ({
   name: "Last Epoch Companion",
+  version: pluginVersion,
   titleView: <div>Last Epoch Companion</div>,
   content: <Content />,
   icon: <FaCloudUploadAlt />,
@@ -426,5 +428,16 @@ function formatBytes(value: number) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error) {
+    const maybeMessage = "message" in error ? error.message : undefined;
+    if (typeof maybeMessage === "string") return maybeMessage;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
 }
