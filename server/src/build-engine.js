@@ -458,8 +458,12 @@ function normalizeFilters(filters) {
 }
 
 function normalizeItemCard(item, index) {
+  const decoded = isPlainObject(item.decoded) ? item.decoded : null;
+  const fingerprint = item.fingerprint ?? decoded?.fingerprint ?? null;
+  const dataLength = numberValue(item.dataLength) ?? numberValue(decoded?.byteLength) ?? 0;
+  const score = numberValue(item.score);
   return {
-    id: stableId("item", item.source ?? "", index, item.inventoryPosition ?? ""),
+    id: item.id ?? stableId("item", fingerprint ?? item.source ?? "", index, item.inventoryPosition ?? ""),
     source: item.source ?? null,
     sourceType: item.sourceType ?? "unknown",
     sourceName: item.sourceName ?? null,
@@ -467,8 +471,11 @@ function normalizeItemCard(item, index) {
     containerId: numberValue(item.containerId),
     inventoryPosition: item.inventoryPosition ?? "",
     formatVersion: numberValue(item.formatVersion),
-    dataLength: numberValue(item.dataLength) ?? 0,
-    decoded: false,
+    dataLength,
+    fingerprint,
+    decoderStatus: item.decoderStatus ?? decoded?.decoderStatus ?? "unknown",
+    score,
+    decoded,
   };
 }
 
@@ -491,7 +498,7 @@ function buildBreakdown(model, metrics, issues) {
     formulas: [
       "parseCompleteness = weighted character/stash/item/filter/parser coverage",
       "readiness scores are heuristic until game-data formulas are implemented",
-      "stash candidate score = itemData length + quantity + container signal",
+      "stash candidate score = raw item byte signal + metadata completeness",
     ],
   };
 }
@@ -541,6 +548,8 @@ function scoreSkills(active) {
 }
 
 function estimateItemScore(item) {
+  const explicitScore = numberValue(item.score);
+  if (explicitScore !== null) return clamp(explicitScore, 0, 100);
   return clamp((item.dataLength ?? 0) + (item.quantity ?? 0) * 3 + (item.containerId === null ? 0 : 8), 0, 100);
 }
 
@@ -576,6 +585,10 @@ function stableId(...parts) {
     .replace(/[^a-z0-9а-яё_-]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 96);
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function numberValue(value) {

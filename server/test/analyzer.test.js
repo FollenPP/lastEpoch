@@ -102,6 +102,11 @@ test("analyzeSnapshot creates one card per item record", async () => {
     assert.equal(analysis.game.items.totalRecords, 1);
     assert.equal(analysis.game.items.cards[0].sourceName, "idols");
     assert.equal(analysis.game.items.cards[0].dataLength, 4);
+    assert.equal(analysis.game.items.cards[0].decoderStatus, "raw-bytes");
+    assert.equal(analysis.game.items.cards[0].decoded.byteLength, 4);
+    assert.equal(analysis.game.items.cards[0].decoded.previewHex, "09 08 07 06");
+    assert.match(analysis.game.items.cards[0].fingerprint, /^[a-f0-9]{20}$/);
+    assert.ok(analysis.game.items.cards[0].score > 0);
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }

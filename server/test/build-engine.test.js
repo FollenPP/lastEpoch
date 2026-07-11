@@ -67,6 +67,22 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
             inventoryPosition: "1, 2",
             formatVersion: 3,
             dataLength: 12,
+            fingerprint: "abc123def4567890abcd",
+            decoderStatus: "raw-bytes",
+            score: 58,
+            decoded: {
+              fingerprint: "abc123def4567890abcd",
+              decoderStatus: "raw-bytes",
+              byteLength: 12,
+              previewHex: "09 08 07 06",
+              checksum: 30,
+              metadata: {
+                quantity: 1,
+                containerId: 3,
+                inventoryPosition: "1, 2",
+                directFields: {},
+              },
+            },
           },
         ],
       },
@@ -83,6 +99,9 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
 
   assert.equal(result.model.characters[0].name, "AdletM");
   assert.equal(result.model.stash.upgradeCandidates.length, 1);
+  assert.equal(result.model.stash.itemCards[0].fingerprint, "abc123def4567890abcd");
+  assert.equal(result.model.stash.itemCards[0].decoderStatus, "raw-bytes");
+  assert.equal(result.model.stash.upgradeCandidates[0].score, 58);
   assert.equal(result.metrics.dataQuality.hasStash, true);
   assert.ok(result.issues.some((issue) => issue.id === "unspent-passives"));
   assert.ok(result.issues.some((issue) => issue.id === "survivability-risk"));

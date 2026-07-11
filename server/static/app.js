@@ -336,6 +336,8 @@ function renderUpgradeCandidates(candidates) {
                 ${kv("Источник", sourceTypeLabel(item.sourceType))}
                 ${kv("Позиция", escapeHtml(item.inventoryPosition || "не найдена"))}
                 ${kv("Data", displayValue(item.dataLength))}
+                ${kv("Fingerprint", displayValue(item.fingerprint))}
+                ${kv("Status", decoderStatusLabel(item.decoderStatus))}
                 ${kv("Уверенность", escapeHtml(item.confidence ?? "low"))}
               </div>
             </article>
@@ -468,6 +470,11 @@ function renderItemCards(items) {
                 ${kv("Позиция", escapeHtml(card.inventoryPosition || "не найдена"))}
                 ${kv("Версия", displayValue(card.formatVersion))}
                 ${kv("Data", displayValue(card.dataLength))}
+                ${kv("Score", displayValue(card.score))}
+                ${kv("Fingerprint", displayValue(card.fingerprint))}
+                ${kv("Status", decoderStatusLabel(card.decoderStatus))}
+                ${kv("Hex", displayValue(card.decoded?.previewHex))}
+                ${kv("Checksum", displayValue(card.decoded?.checksum))}
               </div>
             </article>
           `,
@@ -656,6 +663,17 @@ function sourceTypeLabel(value) {
       "stash-tab": "вкладка",
       filter: "фильтр",
     }[value] ?? "запись"
+  );
+}
+
+function decoderStatusLabel(value) {
+  return (
+    {
+      "raw-bytes": "raw bytes",
+      "metadata-only": "metadata only",
+      empty: "empty",
+      unknown: "unknown",
+    }[value] ?? displayValue(value)
   );
 }
 

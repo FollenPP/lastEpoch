@@ -179,11 +179,37 @@ async function route(req, res) {
     return;
   }
 
+  const v1ItemsMatch = url.pathname.match(/^\/api\/v1\/items\/([a-zA-Z0-9_-]+)$/);
+  if (method === "GET" && v1ItemsMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1ItemsMatch[1]);
+    sendJson(res, 200, {
+      items: buildAnalysis.model.stash.itemCards,
+      total: buildAnalysis.model.stash.itemCards.length,
+      apiVersion: "v1",
+    });
+    return;
+  }
+
+  const v1ItemDetailMatch = url.pathname.match(/^\/api\/v1\/items\/([a-zA-Z0-9_-]+)\/([^/]+)$/);
+  if (method === "GET" && v1ItemDetailMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1ItemDetailMatch[1]);
+    const itemId = decodeURIComponent(v1ItemDetailMatch[2]);
+    const item = findItemCandidate(buildAnalysis.model, itemId);
+    if (!item) {
+      sendJson(res, 404, { error: "not_found", message: "Item was not found in this snapshot." });
+      return;
+    }
+    sendJson(res, 200, { item, apiVersion: "v1" });
+    return;
+  }
+
   const v1StashItemsMatch = url.pathname.match(/^\/api\/v1\/stashes\/([a-zA-Z0-9_-]+)\/items$/);
   if (method === "GET" && v1StashItemsMatch) {
     if (!hasAccess(req)) return unauthorized(res);
     const { buildAnalysis } = await readBuildAnalysis(v1StashItemsMatch[1]);
-    sendJson(res, 200, { items: buildAnalysis.model.stash.itemCards, apiVersion: "v1" });
+    sendJson(res, 200, { items: buildAnalysis.model.stash.itemCards, total: buildAnalysis.model.stash.itemCards.length, apiVersion: "v1" });
     return;
   }
 
@@ -200,7 +226,7 @@ async function route(req, res) {
     if (!hasAccess(req)) return unauthorized(res);
     const { buildAnalysis } = await readBuildAnalysis(v1StashSimulateMatch[1]);
     const itemId = decodeURIComponent(v1StashSimulateMatch[2]);
-    const item = buildAnalysis.model.stash.itemCards.find((candidate) => candidate.id === itemId);
+    const item = findItemCandidate(buildAnalysis.model, itemId);
     if (!item) {
       sendJson(res, 404, { error: "not_found", message: "Item candidate was not found in this snapshot." });
       return;
@@ -449,6 +475,10 @@ function contentType(filePath) {
   if (ext === ".js") return "text/javascript; charset=utf-8";
   if (ext === ".svg") return "image/svg+xml";
   return "application/octet-stream";
+}
+
+function findItemCandidate(model, itemId) {
+  return (model.stash.itemCards ?? []).find((candidate) => candidate.id === itemId || candidate.fingerprint === itemId) ?? null;
 }
 
 async function createDevicePairing(body) {

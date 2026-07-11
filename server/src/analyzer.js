@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { decodeItemRecord, estimateRawItemScore } from "./item-decoder.js";
 import { safeJoin } from "./storage.js";
 
 const ITEM_SIGNAL_WORDS = [
@@ -440,25 +441,42 @@ function buildItemCards(files) {
   const cards = [];
   for (const file of files) {
     if (!file[PARSED_DATA] || !file.gameSummary) continue;
+    let recordIndex = 0;
     collectItemRecords(file[PARSED_DATA], (record) => {
-      cards.push({
+      const sourceName = file.gameSummary.displayName ?? file.gameSummary.name ?? file.gameSummary.stashName ?? file.name;
+      const decoded = decodeItemRecord(record, {
         source: file.relativePath,
         sourceType: file.gameSummary.type,
-        sourceName: file.gameSummary.displayName ?? file.gameSummary.name ?? file.gameSummary.stashName ?? file.name,
-        quantity: numberValue(record.quantity),
-        containerId: numberValue(record.containerID),
-        inventoryPosition: summarizePosition(record.inventoryPosition),
-        formatVersion: numberValue(record.formatVersion),
-        dataLength: Array.isArray(record.itemData?.data) ? record.itemData.data.length : Array.isArray(record.data) ? record.data.length : null,
+        sourceName,
+        recordIndex,
       });
+      cards.push({
+        id: decoded.id,
+        source: file.relativePath,
+        sourceType: file.gameSummary.type,
+        sourceName,
+        quantity: decoded.metadata.quantity,
+        containerId: decoded.metadata.containerId,
+        inventoryPosition: decoded.metadata.inventoryPosition,
+        formatVersion: decoded.metadata.formatVersion,
+        dataLength: decoded.byteLength,
+        fingerprint: decoded.fingerprint,
+        decoderStatus: decoded.decoderStatus,
+        score: estimateRawItemScore(decoded),
+        decoded,
+      });
+      recordIndex += 1;
     });
   }
   return cards;
 }
 
 function collectItemRecords(value, visitor) {
+  const nestedItemDataObjects = new WeakSet();
   walk(value, (node) => {
     if (!isObject(node)) return;
+    if (isObject(node.itemData)) nestedItemDataObjects.add(node.itemData);
+    if (nestedItemDataObjects.has(node)) return;
     const hasNestedItemData = isObject(node.itemData) || Array.isArray(node.itemData?.data);
     const hasDirectItemData = Array.isArray(node.data) && hasItemRecordMetadata(node);
     if (hasNestedItemData || hasDirectItemData) {
