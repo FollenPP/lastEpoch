@@ -15,6 +15,8 @@ Node server on VPS
 
 The Steam Deck no longer needs to be in the same Wi-Fi network as the laptop. The laptop, phone, and Deck all use the same public server.
 
+The Decky plugin is the Steam Deck companion for the larger Build Analyzer architecture. It can keep sending to `/api/snapshots`; the server also exposes `/api/v1/companion/snapshots` for future companion clients with the same payload contract.
+
 ## No-Domain Mode
 
 This project can run without a domain:

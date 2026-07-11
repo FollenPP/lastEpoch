@@ -2,10 +2,14 @@
 
 Companion for **Last Epoch Full Offline** on Steam Deck.
 
+This repo is also the first working slice of the larger **Last Epoch Build Analyzer** idea: Decky is the Steam Deck companion-adapter, and the server is the web analyzer that stores snapshots, parses saves/stash/filters, and renders recommendations.
+
 The project has two parts:
 
 - `server/`: laptop-side local web app and snapshot API.
 - `decky-plugin/`: Steam Deck Decky plugin that sends saves, stash files, and loot filters to the laptop with one button.
+
+See [docs/TECHNICAL_SPEC.md](docs/TECHNICAL_SPEC.md) for the Decky integration contract with the future full build analyzer.
 
 The server is intentionally dependency-free. It stores uploaded snapshots locally and never needs the game installed on the laptop.
 
@@ -108,6 +112,15 @@ The Decky plugin reads these paths and sends a snapshot to the laptop. It does n
 ## Snapshot API
 
 `POST /api/snapshots`
+
+The future-facing v1 companion endpoint is also available and accepts the same payload:
+
+```text
+POST /api/v1/companion/snapshots
+POST /api/v1/imports/decky-snapshot
+```
+
+The installed Decky plugin can keep using `/api/snapshots`; both routes feed the same snapshot storage and analyzer.
 
 Headers:
 

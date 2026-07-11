@@ -138,7 +138,7 @@ function renderSnapshotDetail(snapshot, analysis) {
       <div>
         <p class="eyebrow">${escapeHtml(snapshot.deckName ?? "Steam Deck")}</p>
         <h2>Снимок ${escapeHtml(snapshot.id)}</h2>
-        <p class="muted">Получен ${formatDate(snapshot.receivedAt)}. Плагин: ${escapeHtml(snapshot.pluginVersion ?? "unknown")}.</p>
+        <p class="muted">Получен ${formatDate(snapshot.receivedAt)}. Плагин: ${escapeHtml(snapshot.pluginVersion ?? "unknown")}. Источник: ${escapeHtml(sourceLabel(snapshot.source))}.</p>
       </div>
       <div class="actionRow">
         <button id="reanalyzeButton">Переанализировать</button>
@@ -534,6 +534,13 @@ function sourceTypeLabel(value) {
       filter: "фильтр",
     }[value] ?? "запись"
   );
+}
+
+function sourceLabel(source) {
+  if (!source || typeof source !== "object") return "legacy";
+  const companion = source.companion || source.kind || "unknown";
+  const apiVersion = source.apiVersion ? `API ${source.apiVersion}` : "legacy";
+  return `${companion}, ${apiVersion}`;
 }
 
 function displayValue(value) {

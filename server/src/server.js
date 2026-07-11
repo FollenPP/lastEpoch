@@ -88,13 +88,52 @@ async function route(req, res) {
   const method = req.method ?? "GET";
 
   if (method === "GET" && url.pathname === "/api/health") {
-    sendJson(res, 200, {
-      ok: true,
-      port,
-      publicBaseUrl,
-      lanUrls: await getLanAddresses(port),
-      dataDir,
+    sendJson(res, 200, await healthPayload());
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/v1/health") {
+    sendJson(res, 200, { ...(await healthPayload()), apiVersion: "v1" });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/v1/companion/snapshots") {
+    if (!hasToken(req)) return unauthorized(res);
+    const body = await readJsonBody(req);
+    const result = await importSnapshot({
+      ...body,
+      source: {
+        ...(isObject(body.source) ? body.source : {}),
+        kind: "companion",
+        companion: body.source?.companion ?? "decky-plugin",
+        transport: "http-json",
+        apiVersion: "v1",
+      },
     });
+    sendJson(res, 201, result);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/v1/imports/decky-snapshot") {
+    if (!hasToken(req)) return unauthorized(res);
+    const body = await readJsonBody(req);
+    const result = await importSnapshot({
+      ...body,
+      source: {
+        ...(isObject(body.source) ? body.source : {}),
+        kind: "companion",
+        companion: "decky-plugin",
+        transport: "http-json",
+        apiVersion: "v1",
+      },
+    });
+    sendJson(res, 201, result);
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/v1/snapshots") {
+    if (!hasAccess(req)) return unauthorized(res);
+    sendJson(res, 200, { snapshots: await listSnapshots(), apiVersion: "v1" });
     return;
   }
 
@@ -153,11 +192,7 @@ async function route(req, res) {
   if (method === "POST" && url.pathname === "/api/snapshots") {
     if (!hasToken(req)) return unauthorized(res);
     const body = await readJsonBody(req);
-    const manifest = await saveSnapshot(body);
-    const { rawDir } = await readSnapshot(manifest.id);
-    const analysis = await analyzeSnapshot(manifest, rawDir);
-    await writeAnalysis(manifest.id, analysis);
-    sendJson(res, 201, { snapshot: manifest, analysis });
+    sendJson(res, 201, await importSnapshot(body));
     return;
   }
 
@@ -206,6 +241,24 @@ async function route(req, res) {
   sendJson(res, 404, { error: "not_found" });
 }
 
+async function healthPayload() {
+  return {
+    ok: true,
+    port,
+    publicBaseUrl,
+    lanUrls: await getLanAddresses(port),
+    dataDir,
+  };
+}
+
+async function importSnapshot(body) {
+  const manifest = await saveSnapshot(body);
+  const { rawDir } = await readSnapshot(manifest.id);
+  const analysis = await analyzeSnapshot(manifest, rawDir);
+  await writeAnalysis(manifest.id, analysis);
+  return { snapshot: manifest, analysis };
+}
+
 async function serveStatic(requestPath, res) {
   const cleanPath = requestPath === "/" ? "/index.html" : requestPath;
   const target = path.resolve(staticDir, `.${cleanPath}`);
@@ -228,6 +281,10 @@ function hasAccess(req) {
 function hasToken(req) {
   const token = req.headers["x-pairing-token"] ?? req.headers["x-device-token"];
   return token === config.pairingToken || isKnownDeviceToken(token);
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function unauthorized(res) {

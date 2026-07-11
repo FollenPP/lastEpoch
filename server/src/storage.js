@@ -86,6 +86,7 @@ export async function saveSnapshot(payload) {
     receivedAt: new Date().toISOString(),
     deckName: String(payload.deckName ?? "steam-deck"),
     pluginVersion: String(payload.pluginVersion ?? "unknown"),
+    source: normalizeSource(payload),
     savesRoot: String(payload.savesRoot ?? ""),
     filtersRoot: String(payload.filtersRoot ?? ""),
     fileCount: files.length,
@@ -204,4 +205,23 @@ function normalizeKind(value) {
   const kind = String(value ?? "").toLowerCase();
   if (["save", "filter", "other"].includes(kind)) return kind;
   return "other";
+}
+
+function normalizeSource(payload) {
+  const source = isObject(payload.source) ? payload.source : {};
+  const hasDeckySignals = Boolean(payload.pluginVersion || payload.deckName);
+  return {
+    kind: stringValue(source.kind) ?? (hasDeckySignals ? "companion" : "manual"),
+    companion: stringValue(source.companion) ?? (hasDeckySignals ? "decky-plugin" : null),
+    transport: stringValue(source.transport) ?? "http-json",
+    apiVersion: stringValue(source.apiVersion) ?? "legacy",
+  };
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
