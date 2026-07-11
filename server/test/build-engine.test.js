@@ -98,6 +98,10 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
   const result = buildAnalyzerSnapshot(snapshot, analysis);
 
   assert.equal(result.model.characters[0].name, "AdletM");
+  assert.equal(result.model.knowledge.phase, "endgame");
+  assert.equal(result.model.knowledge.archetype.primary, "hit-caster");
+  assert.ok(result.model.knowledge.tags.damage.includes("fire"));
+  assert.ok(result.metrics.knowledgeReadiness > 0);
   assert.equal(result.model.stash.upgradeCandidates.length, 1);
   assert.equal(result.model.stash.itemCards[0].fingerprint, "abc123def4567890abcd");
   assert.equal(result.model.stash.itemCards[0].decoderStatus, "raw-bytes");
@@ -106,6 +110,7 @@ test("buildAnalyzerSnapshot creates normalized model, issues, recommendations, a
   assert.ok(result.issues.some((issue) => issue.id === "unspent-passives"));
   assert.ok(result.issues.some((issue) => issue.id === "survivability-risk"));
   assert.ok(result.recommendations.some((item) => item.id === "spend-passive-points"));
+  assert.ok(result.recommendations.some((item) => item.id === "knowledge-scale-primary-damage"));
   assert.ok(result.plan.steps.some((step) => step.id === "decoder"));
   assert.equal(searchStashUpgrades(result.model).length, 1);
 });

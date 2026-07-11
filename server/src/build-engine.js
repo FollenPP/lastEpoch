@@ -1,3 +1,5 @@
+import { buildKnowledgeProfile, summarizeGameData } from "./game-data.js";
+
 const ANALYSIS_VERSION = "build-analyzer-mvp-1";
 
 export function buildAnalyzerSnapshot(snapshot, analysis) {
@@ -22,6 +24,7 @@ export function buildAnalyzerSnapshot(snapshot, analysis) {
     breakdown,
     limitations: [
       "itemData пока не сопоставлен с базой предметов Last Epoch, поэтому предметные рекомендации имеют низкую уверенность.",
+      "Game-data слой сейчас стартовый: он определяет теги и приоритеты, но не заменяет полный datamine предметов, пассивок и формул.",
       "Пассивные и skill node ID пока отображаются как технические идентификаторы без названий узлов.",
       "Расчет характеристик сейчас эвристический; полноценный formula engine будет отдельным следующим модулем.",
     ],
@@ -34,6 +37,7 @@ export function normalizeBuildModel(snapshot, analysis) {
   const stash = normalizeStash(game.stash ?? {}, game.items ?? {});
   const filters = normalizeFilters(game.filters ?? []);
   const activeCharacter = chooseActiveCharacter(characters);
+  const knowledge = buildKnowledgeProfile(activeCharacter, { stash, filters });
 
   return {
     schemaVersion: "le-build-model-v1",
@@ -50,6 +54,8 @@ export function normalizeBuildModel(snapshot, analysis) {
     characters,
     stash,
     filters,
+    gameData: summarizeGameData(),
+    knowledge,
     parser: {
       stage: game.build?.parserStage ?? "unknown",
       hasPassiveTreeData: Boolean(game.build?.hasPassiveTreeData),
@@ -67,9 +73,10 @@ export function calculateMetrics(model) {
   const progressionReadiness = scoreProgression(active);
   const defensiveReadiness = scoreDefense(active);
   const skillReadiness = scoreSkills(active);
+  const knowledgeReadiness = scoreKnowledge(model.knowledge);
   const stashReadiness = Math.min(100, Math.round((model.stash.itemRecordCount / 20) * 100));
   const filterReadiness = model.filters.length === 0 ? 0 : Math.min(100, Math.max(...model.filters.map((filter) => filter.ruleCount * 10)));
-  const confidence = Math.round((parseCompleteness + progressionReadiness + defensiveReadiness + skillReadiness) / 4);
+  const confidence = Math.round((parseCompleteness + progressionReadiness + defensiveReadiness + skillReadiness + knowledgeReadiness) / 5);
 
   return {
     activeCharacterId: active?.id ?? null,
@@ -78,6 +85,7 @@ export function calculateMetrics(model) {
     progressionReadiness,
     defensiveReadiness,
     skillReadiness,
+    knowledgeReadiness,
     stashReadiness,
     filterReadiness,
     dataQuality: {
@@ -87,6 +95,8 @@ export function calculateMetrics(model) {
       hasFilters: model.filters.length > 0,
       hasPassiveTree: Boolean(active?.passiveTree.hasData),
       hasSkillTrees: Boolean(active?.skills.hasData),
+      hasGameData: model.gameData?.status === "starter",
+      hasArchetype: Boolean(model.knowledge?.archetype?.primary && model.knowledge.archetype.primary !== "unknown"),
     },
   };
 }
@@ -156,6 +166,18 @@ export function detectIssues(model, metrics) {
         "Есть риск по выживаемости",
         "Hardcore/смерти требуют сначала проверять здоровье, сопротивления, endurance, sustain и защитные слои.",
         active.hardcore ? 95 : 80,
+      ),
+    );
+  }
+
+  if ((model.knowledge?.confidence ?? 0) < 0.4) {
+    issues.push(
+      issue(
+        "archetype-uncertain",
+        "info",
+        "Архетип билда пока распознан слабо",
+        "Game-data слой не нашел достаточно skill/tag сигналов. Рекомендации по урону будут осторожными, пока не появится больше данных о skill bar, passive tree и предметах.",
+        58,
       ),
     );
   }
@@ -269,7 +291,7 @@ export function rankRecommendations(model, metrics, issues) {
         recommendation({
           id: "decode-item-data",
           title: "Подключить расшифровку itemData",
-          action: "Следующий технический шаг: добавить базу item bases/affixes и декодер itemData.",
+          action: "Следующий технический шаг: расширить базу item bases/affixes и декодер itemData.",
           reason: currentIssue.body,
           expectedEffect: "карточки предметов станут игровыми: база, аффиксы, тиры, сравнение",
           confidence: 0.95,
@@ -290,6 +312,21 @@ export function rankRecommendations(model, metrics, issues) {
         expectedEffect: "быстрее найти предметы, которые стоит расшифровать первыми",
         confidence: 0.45,
         priority: 62,
+        issueIds: [],
+      }),
+    );
+  }
+
+  for (const priority of model.knowledge?.priorities ?? []) {
+    recommendations.push(
+      recommendation({
+        id: `knowledge-${priority.id}`,
+        title: priority.title,
+        action: priority.action,
+        reason: priority.reason,
+        expectedEffect: priority.expectedEffect,
+        confidence: priority.confidence,
+        priority: priority.priority,
         issueIds: [],
       }),
     );
@@ -334,8 +371,12 @@ export function buildDevelopmentPlan(model, metrics, issues, recommendations) {
     steps.push(planStep("monolith", "Готовить эндгейм-проверку", "После декодера предметов сравнить stash с надетыми слотами и blessings.", "next"));
   }
 
+  for (const priority of model.knowledge?.priorities?.slice(0, 2) ?? []) {
+    steps.push(planStep(`knowledge-${priority.id}`, priority.title, priority.action, priority.id === "defensive-floor" ? "now" : "next"));
+  }
+
   if (recommendations.some((item) => item.id === "decode-item-data")) {
-    steps.push(planStep("decoder", "Расшифровать itemData", "Добавить game data базу и декодер предметов: base, affixes, tiers, implicits.", "technical"));
+    steps.push(planStep("decoder", "Расшифровать itemData", "Расширить game data базу и декодер предметов: base, affixes, tiers, implicits.", "technical"));
   }
 
   if (!metrics.dataQuality.hasFilters) {
@@ -495,6 +536,13 @@ function buildBreakdown(model, metrics, issues) {
       value: metrics.confidence,
       penalties: issues.map((item) => ({ issueId: item.id, priority: item.priority, severity: item.severity })),
     },
+    knowledge: {
+      value: metrics.knowledgeReadiness,
+      profileConfidence: model.knowledge?.confidence ?? 0,
+      archetype: model.knowledge?.archetype ?? null,
+      tags: model.knowledge?.tags ?? {},
+      gameData: model.gameData,
+    },
     formulas: [
       "parseCompleteness = weighted character/stash/item/filter/parser coverage",
       "readiness scores are heuristic until game-data formulas are implemented",
@@ -545,6 +593,15 @@ function scoreSkills(active) {
   const specialized = Math.min(5, active.skills.specializedTrees) * 12;
   const bar = Math.min(5, active.skills.abilityBarSlots) * 8;
   return clamp(specialized + bar, 0, 100);
+}
+
+function scoreKnowledge(knowledge) {
+  if (!knowledge) return 0;
+  let score = Math.round((knowledge.confidence ?? 0) * 70);
+  if ((knowledge.tags?.damage ?? []).length > 0) score += 12;
+  if ((knowledge.priorities ?? []).length > 0) score += 10;
+  if (knowledge.archetype?.primary && knowledge.archetype.primary !== "unknown") score += 8;
+  return clamp(score, 0, 100);
 }
 
 function estimateItemScore(item) {

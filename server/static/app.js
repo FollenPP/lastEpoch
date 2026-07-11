@@ -238,7 +238,9 @@ function renderBuildAnalysis(buildAnalysis) {
       ${metric("Защита", `${buildAnalysis.metrics?.defensiveReadiness ?? 0}%`)}
       ${metric("Скиллы", `${buildAnalysis.metrics?.skillReadiness ?? 0}%`)}
       ${metric("Stash", `${buildAnalysis.metrics?.stashReadiness ?? 0}%`)}
+      ${metric("Game data", `${buildAnalysis.metrics?.knowledgeReadiness ?? 0}%`)}
     </div>
+    ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
     <div class="analysisColumns">
       <div>
         <h3>Проблемы</h3>
@@ -256,6 +258,44 @@ function renderBuildAnalysis(buildAnalysis) {
     <div class="section">
       <h3>Кандидаты из stash</h3>
       ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
+    </div>
+  `;
+}
+
+function renderBuildProfile(profile, gameData) {
+  if (!profile) {
+    return `<div class="section"><p class="muted">Профиль билда появится после распознавания персонажа.</p></div>`;
+  }
+  return `
+    <div class="section">
+      <h3>Профиль билда</h3>
+      <div class="cardGrid smallCards">
+        ${infoCard("Архетип", profile.archetype?.name ?? "не распознан", `Уверенность game-data слоя: ${Math.round((profile.confidence ?? 0) * 100)}%.`)}
+        ${infoCard("Фаза", profile.phase === "endgame" ? "endgame" : "прокачка", `База знаний: ${gameData?.version ?? profile.version ?? "starter"}.`)}
+        ${infoCard("Damage tags", profile.tags?.damage?.join(", ") || "не найдены", "Теги из активных навыков, по которым стоит фильтровать урон и идолы.")}
+        ${infoCard("Utility", profile.tags?.utility?.join(", ") || "не найдена", "Movement/sustain/utility сигналы из skill bar.")}
+      </div>
+      ${renderPriorityList(profile.priorities ?? [])}
+    </div>
+  `;
+}
+
+function renderPriorityList(priorities) {
+  if (!priorities.length) return `<p class="muted">Приоритеты появятся после распознавания skill/tag сигналов.</p>`;
+  return `
+    <div class="recommendations">
+      ${priorities
+        .slice(0, 4)
+        .map(
+          (item) => `
+            <article class="recommendation">
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.action)}</p>
+              <p class="muted">${escapeHtml(item.expectedEffect)} · ${escapeHtml((item.tags ?? []).join(", ") || "без тегов")}</p>
+            </article>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }

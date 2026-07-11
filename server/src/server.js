@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { analyzeSnapshot } from "./analyzer.js";
 import { buildAnalyzerSnapshot, searchStashUpgrades } from "./build-engine.js";
 import { generateReviewFilter } from "./filter-generator.js";
+import { summarizeGameData } from "./game-data.js";
 import {
   dataDir,
   ensureStorage,
@@ -98,6 +99,12 @@ async function route(req, res) {
     return;
   }
 
+  if (method === "GET" && url.pathname === "/api/v1/game-data") {
+    if (!hasAccess(req)) return unauthorized(res);
+    sendJson(res, 200, { gameData: summarizeGameData(), apiVersion: "v1" });
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/v1/companion/snapshots") {
     if (!hasToken(req)) return unauthorized(res);
     const body = await readJsonBody(req);
@@ -167,6 +174,18 @@ async function route(req, res) {
     if (!hasAccess(req)) return unauthorized(res);
     const { buildAnalysis } = await recalculateBuildAnalysis(v1RecalculateMatch[1]);
     sendJson(res, 200, { analysis: buildAnalysis, apiVersion: "v1" });
+    return;
+  }
+
+  const v1ProfileMatch = url.pathname.match(/^\/api\/v1\/analyses\/([a-zA-Z0-9_-]+)\/profile$/);
+  if (method === "GET" && v1ProfileMatch) {
+    if (!hasAccess(req)) return unauthorized(res);
+    const { buildAnalysis } = await readBuildAnalysis(v1ProfileMatch[1]);
+    sendJson(res, 200, {
+      profile: buildAnalysis.model.knowledge,
+      gameData: buildAnalysis.model.gameData,
+      apiVersion: "v1",
+    });
     return;
   }
 

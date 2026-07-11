@@ -127,21 +127,25 @@ The installed Decky plugin can keep using `/api/snapshots`; both routes feed the
 The first implementation slice of the larger technical spec is exposed under `/api/v1`.
 
 ```text
+GET  /api/v1/game-data
 GET  /api/v1/snapshots/{snapshotId}
 POST /api/v1/snapshots/{snapshotId}/analyses
 GET  /api/v1/analyses/{snapshotId}
 POST /api/v1/analyses/{snapshotId}/recalculate
+GET  /api/v1/analyses/{snapshotId}/profile
 GET  /api/v1/analyses/{snapshotId}/issues
 GET  /api/v1/analyses/{snapshotId}/metrics
 GET  /api/v1/analyses/{snapshotId}/recommendations
 GET  /api/v1/analyses/{snapshotId}/breakdown
+GET  /api/v1/items/{snapshotId}
+GET  /api/v1/items/{snapshotId}/{itemId}
 GET  /api/v1/stashes/{snapshotId}/items
 POST /api/v1/stashes/{snapshotId}/search-upgrades
 POST /api/v1/stashes/{snapshotId}/items/{itemId}/simulate
 POST /api/v1/loot-filters/generate
 ```
 
-These endpoints currently provide a normalized build model, heuristic metrics, issues, recommendations, a development plan, and low-confidence stash upgrade candidates. Full item decoding, game-data formulas, passive node names, skill-tree simulation, and exact DPS/EHP calculations are intentionally separate next modules.
+These endpoints currently provide a normalized build model, starter game-data profile, heuristic metrics, issues, recommendations, a development plan, raw item fingerprints, and low-confidence stash upgrade candidates. Exact item base/affix decoding, passive node names, skill-tree simulation, and exact DPS/EHP calculations are intentionally separate next modules.
 
 Headers:
 
