@@ -33,10 +33,9 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.7"
-SETTINGS_VERSION = 2
+PLUGIN_VERSION = "0.1.8"
+SETTINGS_VERSION = 3
 DEFAULT_SERVER_URL = "http://185.201.28.103"
-REMOTE_CONFIG_URL = "https://raw.githubusercontent.com/FollenPP/lastEpoch/master/decky-plugin/default-settings.json"
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/FollenPP/lastEpoch/releases/latest"
 GITHUB_LATEST_ZIP_URL = "https://github.com/FollenPP/lastEpoch/releases/latest/download/last-epoch-companion.zip"
 PLUGIN_ARCHIVE_DIR = "last-epoch-companion"
@@ -78,9 +77,6 @@ class Plugin:
 
     async def reset_server_url(self):
         return await asyncio.to_thread(_reset_server_url)
-
-    async def sync_server_config(self):
-        return await asyncio.to_thread(_sync_server_config)
 
     async def ping_server(self):
         settings = await asyncio.to_thread(_read_settings)
@@ -130,7 +126,7 @@ def _default_settings():
     return {
         "settingsVersion": SETTINGS_VERSION,
         "serverUrl": DEFAULT_SERVER_URL,
-        "serverUrlSource": "default",
+        "serverUrlSource": "hardcoded",
         "pairingToken": "",
         "savesRoot": str(DEFAULT_SAVES_ROOT),
         "filtersRoot": str(DEFAULT_FILTERS_ROOT),
@@ -149,9 +145,8 @@ def _read_settings():
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return _default_settings()
-    loaded_version = _settings_version(loaded)
     settings = {**_default_settings(), **loaded}
-    settings, changed = _normalize_settings(settings, loaded_version=loaded_version)
+    settings, changed = _normalize_settings(settings, loaded_server_url=str(loaded.get("serverUrl", "")).strip())
     if changed:
         _persist_settings(settings)
     return settings
@@ -162,8 +157,8 @@ def _write_settings(settings):
     next_settings = {
         **current,
         "settingsVersion": SETTINGS_VERSION,
-        "serverUrl": str(settings.get("serverUrl", current["serverUrl"])).strip(),
-        "serverUrlSource": str(settings.get("serverUrlSource", current.get("serverUrlSource", "manual"))).strip(),
+        "serverUrl": DEFAULT_SERVER_URL,
+        "serverUrlSource": "hardcoded",
         "pairingToken": str(settings.get("pairingToken", current["pairingToken"])).strip(),
         "savesRoot": str(settings.get("savesRoot", current["savesRoot"])).strip(),
         "filtersRoot": str(settings.get("filtersRoot", current["filtersRoot"])).strip(),
@@ -172,30 +167,30 @@ def _write_settings(settings):
         "pairingRequestId": str(settings.get("pairingRequestId", current["pairingRequestId"])).strip(),
         "pairingCode": str(settings.get("pairingCode", current["pairingCode"])).strip(),
     }
-    next_settings, _ = _normalize_settings(next_settings, migrate_legacy=False)
+    next_settings, _ = _normalize_settings(next_settings)
     _persist_settings(next_settings)
     return next_settings
 
 
-def _normalize_settings(settings, migrate_legacy=True, loaded_version=None):
+def _normalize_settings(settings, loaded_server_url=None):
     changed = False
     next_settings = {**settings}
-    server_url = str(next_settings.get("serverUrl", "")).strip()
-    version_for_migration = _settings_version(next_settings) if loaded_version is None else loaded_version
+    previous_server_url = str(loaded_server_url if loaded_server_url is not None else next_settings.get("serverUrl", "")).strip().rstrip("/")
 
-    if not server_url or "adlethome" in server_url:
-        next_settings = _with_server_url(next_settings, DEFAULT_SERVER_URL, "default-migration")
-        changed = True
-    elif migrate_legacy and version_for_migration < SETTINGS_VERSION and server_url.rstrip("/") != DEFAULT_SERVER_URL:
-        next_settings = _with_server_url(next_settings, DEFAULT_SERVER_URL, "legacy-migration")
+    if previous_server_url and previous_server_url != DEFAULT_SERVER_URL:
+        next_settings = _with_server_url(next_settings, DEFAULT_SERVER_URL, "hardcoded-migration")
         changed = True
 
     if _settings_version(next_settings) != SETTINGS_VERSION:
         next_settings["settingsVersion"] = SETTINGS_VERSION
         changed = True
 
-    if not str(next_settings.get("serverUrlSource", "")).strip():
-        next_settings["serverUrlSource"] = "default"
+    if next_settings.get("serverUrl") != DEFAULT_SERVER_URL:
+        next_settings["serverUrl"] = DEFAULT_SERVER_URL
+        changed = True
+
+    if next_settings.get("serverUrlSource") != "hardcoded":
+        next_settings["serverUrlSource"] = "hardcoded"
         changed = True
 
     return next_settings, changed
@@ -236,41 +231,17 @@ def _import_setup_file():
     loaded = json.loads(setup_file.read_text(encoding="utf-8"))
     imported = {
         **current,
-        "serverUrl": str(loaded.get("serverUrl", current["serverUrl"])).strip(),
-        "pairingToken": str(loaded.get("pairingToken", current["pairingToken"])).strip(),
         "savesRoot": str(loaded.get("savesRoot", current["savesRoot"])).strip(),
         "filtersRoot": str(loaded.get("filtersRoot", current["filtersRoot"])).strip(),
         "setupFile": str(setup_file),
     }
-
-    if not imported["serverUrl"]:
-        raise ValueError("Setup file does not include serverUrl.")
 
     return _write_settings(imported)
 
 
 def _reset_server_url():
     current = _read_settings()
-    return _write_settings(_with_server_url(current, DEFAULT_SERVER_URL, "default-button"))
-
-
-def _sync_server_config():
-    current = _read_settings()
-    request = urllib.request.Request(
-        REMOTE_CONFIG_URL,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": f"LastEpochCompanionDecky/{PLUGIN_VERSION}",
-        },
-    )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        remote = json.loads(response.read().decode("utf-8"))
-
-    server_url = str(remote.get("serverUrl", "")).strip()
-    if not server_url.startswith(("http://", "https://")):
-        raise ValueError("Remote config does not include a valid serverUrl.")
-
-    return _write_settings(_with_server_url(current, server_url, "github-config"))
+    return _write_settings(_with_server_url(current, DEFAULT_SERVER_URL, "hardcoded-button"))
 
 
 def _ping_server(settings):
@@ -466,7 +437,7 @@ def _find_plugin_source_dir(extract_dir):
 
 
 def _copy_plugin_files(source_dir, target_dir):
-    for name in ["plugin.json", "package.json", "main.py", "default-settings.json", "README.md", "LICENSE"]:
+    for name in ["plugin.json", "package.json", "main.py", "README.md", "LICENSE"]:
         source = source_dir / name
         if source.exists():
             shutil.copy2(source, target_dir / name)
@@ -527,10 +498,7 @@ def _iter_files(root, kind):
 
 
 def _server_url(settings, suffix):
-    base = str(settings.get("serverUrl", "")).strip().rstrip("/")
-    if not base:
-        raise ValueError("Server URL is not configured.")
-    return f"{base}{suffix}"
+    return f"{DEFAULT_SERVER_URL}{suffix}"
 
 
 def _safe_file_name(value):

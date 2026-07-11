@@ -1,6 +1,6 @@
 # Last Epoch Companion Decky Plugin
 
-This plugin sends a read-only snapshot of Last Epoch Full Offline files to the laptop server.
+This plugin sends a read-only snapshot of Last Epoch Full Offline files to the companion server.
 
 Production default server:
 
@@ -43,7 +43,7 @@ Use `Updates -> Check Updates -> Install Latest`, then restart Decky or reboot S
 - The plugin writes only its settings and optional generated loot filters.
 - No root flag is requested.
 
-## Setup Without Typing
+## Setup
 
 Preferred production flow:
 
@@ -51,14 +51,4 @@ Preferred production flow:
 Start Pairing -> approve code in web UI -> Check Pairing -> Send Snapshot
 ```
 
-Local development fallback: send this file from the laptop to Steam Deck:
-
-```text
-server/static/downloads/last-epoch-companion-settings.json
-```
-
-Then press `Load Setup File` in the plugin. The plugin reads:
-
-```text
-/home/deck/Downloads/last-epoch-companion-settings.json
-```
+The server URL is hardcoded in the plugin and is not read from setup or settings files.

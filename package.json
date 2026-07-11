@@ -1,6 +1,6 @@
 {
   "name": "last-epoch-deck-companion",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "description": "Local LAN companion for sending Last Epoch Steam Deck snapshots to a laptop analyzer.",
