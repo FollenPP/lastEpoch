@@ -2,6 +2,9 @@ const state = {
   snapshots: [],
   selectedId: null,
   tokenVisible: false,
+  currentSnapshot: null,
+  currentAnalysis: null,
+  currentBuildAnalysis: null,
 };
 
 const serverInfo = document.querySelector("#serverInfo");
@@ -58,7 +61,10 @@ async function loadSnapshots() {
   try {
     const response = await api("/api/snapshots", { auth: true });
     state.snapshots = response.snapshots ?? [];
-    if (!state.selectedId && state.snapshots.length > 0) {
+    const requestedId = new URL(location.href).searchParams.get("snapshot");
+    if (requestedId && state.snapshots.some((snapshot) => snapshot.id === requestedId)) {
+      state.selectedId = requestedId;
+    } else if (!state.selectedId && state.snapshots.length > 0) {
       state.selectedId = state.snapshots[0].id;
     }
   } catch {
@@ -130,6 +136,9 @@ async function approvePairing(id) {
 function renderSnapshotDetail(snapshot, analysis, buildAnalysis) {
   emptyState.classList.add("hidden");
   snapshotDetail.classList.remove("hidden");
+  state.currentSnapshot = snapshot;
+  state.currentAnalysis = analysis;
+  state.currentBuildAnalysis = buildAnalysis;
 
   const summary = analysis?.summary ?? {};
   const game = analysis?.game ?? emptyGame();
@@ -202,6 +211,11 @@ function renderSnapshotDetail(snapshot, analysis, buildAnalysis) {
 
   document.querySelector("#reanalyzeButton").addEventListener("click", () => reanalyze(snapshot.id));
   document.querySelector("#filterButton").addEventListener("click", () => generateFilter(snapshot.id));
+  document.querySelector("#plannerReanalyzeButton")?.addEventListener("click", () => reanalyze(snapshot.id));
+  document.querySelector("#plannerFilterButton")?.addEventListener("click", () => generateFilter(snapshot.id));
+  document.querySelector("#plannerFilterButtonInline")?.addEventListener("click", () => generateFilter(snapshot.id));
+  document.querySelector("#plannerCopyLinkButton")?.addEventListener("click", copyPlannerLink);
+  document.querySelector("#plannerExportButton")?.addEventListener("click", exportPlannerJson);
 }
 
 function emptyGame() {
@@ -231,54 +245,86 @@ function renderBuildAnalysis(buildAnalysis) {
   const stashCandidates = decodedUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? []);
   return `
     ${renderBuildHero(character, buildAnalysis)}
-    <div class="buildDashboard">
-      <div class="buildMain">
-        ${renderEquipmentBoard(character)}
-        ${renderBuildTrees(character)}
-        <section class="buildPanel">
-          <div class="panelHeading">
-            <div>
-              <p class="eyebrow">Улучшения из сундука</p>
-              <h3>Кандидаты на замену</h3>
-            </div>
-            <span class="pill info">${displayValue(stashCandidates.length)} декодировано</span>
-          </div>
-          ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
-        </section>
+    ${renderPlannerWorkspace(buildAnalysis, character, stashCandidates)}
+  `;
+}
+
+function renderPlannerWorkspace(buildAnalysis, character, stashCandidates) {
+  return `
+    <div class="plannerShell">
+      ${renderPlannerToolbar(buildAnalysis)}
+      ${renderPlannerNav()}
+      <div class="plannerLayout">
+        <main class="plannerMain">
+          <section id="planner-equipment" class="plannerPane">
+            ${renderEquipmentBoard(character)}
+          </section>
+          <section id="planner-idols" class="plannerPane">
+            ${renderPlannerIdolsAndBlessings(character, buildAnalysis.model)}
+          </section>
+          <section id="planner-skills" class="plannerPane">
+            ${renderBuildTrees(character)}
+          </section>
+          <section id="planner-stash" class="plannerPane">
+            <section class="buildPanel">
+              <div class="panelHeading">
+                <div>
+                  <p class="eyebrow">Сундук</p>
+                  <h3>Кандидаты на замену</h3>
+                </div>
+                <span class="pill info">${displayValue(stashCandidates.length)} декодировано</span>
+              </div>
+              ${renderUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? [])}
+            </section>
+          </section>
+          <section id="planner-advice" class="plannerPane">
+            ${renderPlannerAdvice(buildAnalysis)}
+          </section>
+        </main>
+        <aside class="plannerInspector">
+          ${renderPlannerStatSheet(character, buildAnalysis)}
+          ${renderPlannerConditions(buildAnalysis)}
+          ${renderPlannerFilterPanel(buildAnalysis)}
+          ${renderPlannerDataReadiness(buildAnalysis)}
+          ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
+        </aside>
       </div>
-      <aside class="buildAside">
-        <section class="sidePanel">
-          <h3>Готовность данных</h3>
-          <div class="scoreList">
-            ${scoreRow("Полнота", buildAnalysis.metrics?.parseCompleteness)}
-            ${scoreRow("Уверенность", buildAnalysis.metrics?.confidence)}
-            ${scoreRow("Прокачка", buildAnalysis.metrics?.progressionReadiness)}
-            ${scoreRow("Защита", buildAnalysis.metrics?.defensiveReadiness)}
-            ${scoreRow("Скиллы", buildAnalysis.metrics?.skillReadiness)}
-            ${scoreRow("Stash", buildAnalysis.metrics?.stashReadiness)}
-            ${scoreRow("Game data", buildAnalysis.metrics?.knowledgeReadiness)}
-          </div>
-        </section>
-        ${renderBuildProfile(buildAnalysis.model?.knowledge, buildAnalysis.model?.gameData)}
-        <section class="sidePanel">
-          <h3>Проблемы</h3>
-          ${renderIssues(buildAnalysis.issues ?? [])}
-        </section>
-        <section class="sidePanel">
-          <h3>Рекомендации</h3>
-          ${renderBuildRecommendations(buildAnalysis.recommendations ?? [])}
-        </section>
-      </aside>
     </div>
-    <section class="buildPanel">
-      <div class="panelHeading">
-        <div>
-          <p class="eyebrow">Следующие шаги</p>
-          <h3>План развития</h3>
-        </div>
+  `;
+}
+
+function renderPlannerToolbar(buildAnalysis) {
+  return `
+    <section class="plannerToolbar">
+      <div>
+        <p class="eyebrow">Планировщик</p>
+        <h3>Планировщик билда</h3>
+        <p class="muted">Снимок ${escapeHtml(buildAnalysis.snapshotId ?? buildAnalysis.id ?? "не выбран")} · версия анализа ${escapeHtml(buildAnalysis.version ?? "unknown")}</p>
       </div>
-      ${renderPlan(buildAnalysis.plan?.steps ?? [])}
+      <div class="plannerActions">
+        <button id="plannerReanalyzeButton">Пересчитать</button>
+        <button id="plannerCopyLinkButton">Скопировать ссылку</button>
+        <button id="plannerExportButton">Скачать билд</button>
+        <button id="plannerFilterButton" class="primary">Лут-фильтр</button>
+      </div>
     </section>
+  `;
+}
+
+function renderPlannerNav() {
+  const tabs = [
+    ["planner-equipment", "Снаряжение"],
+    ["planner-idols", "Идолы"],
+    ["planner-skills", "Пассивки/навыки"],
+    ["planner-stash", "Сундук"],
+    ["planner-stats", "Расчеты"],
+    ["planner-advice", "Советы"],
+    ["planner-filter", "Фильтр"],
+  ];
+  return `
+    <nav class="plannerNav" aria-label="Planner sections">
+      ${tabs.map(([href, label]) => `<a href="#${href}">${escapeHtml(label)}</a>`).join("")}
+    </nav>
   `;
 }
 
@@ -369,6 +415,258 @@ function slotItem(slotMap, slot) {
   if (slot === "ring2") return slotMap.ring2 ?? slotMap.secondRing ?? slotMap.ringRight ?? null;
   if (slot === "ring") return slotMap.ring ?? slotMap.ring1 ?? slotMap.ringLeft ?? null;
   return slotMap[slot] ?? null;
+}
+
+function renderPlannerIdolsAndBlessings(character, model) {
+  const equippedItems = character?.equipment?.equippedItems ?? [];
+  const stashItems = model?.stash?.itemCards ?? [];
+  const equippedIdols = equippedItems.filter((item) => playableItem(item)?.slot === "idol" || item.equipmentSlot === "idol");
+  const stashIdols = stashItems.filter((item) => playableItem(item)?.slot === "idol" || item.equipmentSlot === "idol");
+  return `
+    <section class="buildPanel plannerLoadoutPanel">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Идолы и благословения</p>
+          <h3>Дополнительные слоты билда</h3>
+        </div>
+        <span class="pill info">${displayValue(equippedIdols.length + stashIdols.length)} идолов найдено</span>
+      </div>
+      <div class="plannerAuxGrid">
+        <div>
+          <h4>Идолы</h4>
+          ${renderIdolBoard(equippedIdols, stashIdols)}
+        </div>
+        <div>
+          <h4>Благословения</h4>
+          ${renderBlessingBoard(model)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderIdolBoard(equippedIdols, stashIdols) {
+  const idols = equippedIdols.length ? equippedIdols : stashIdols.slice(0, 8);
+  const cells = Array.from({ length: 20 }, (_, index) => idols[index] ?? null);
+  return `
+    <div class="idolBoard">
+      ${cells
+        .map((item, index) =>
+          item
+            ? `<div class="idolCell filled">${renderCompactItemContent(item)}</div>`
+            : `<div class="idolCell empty"><span>${index + 1}</span></div>`,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderBlessingBoard(model) {
+  const blessingItems = (model?.stash?.itemCards ?? []).filter((item) => playableItem(item)?.slot === "blessing");
+  const timelines = ["Черное солнце", "Зимняя эпоха", "Духи огня", "Конец шторма", "Правление драконов"];
+  return `
+    <div class="blessingBoard">
+      ${timelines
+        .map((timeline, index) => {
+          const blessing = blessingItems[index];
+          return `
+            <div class="blessingSlot ${blessing ? "filled" : "empty"}">
+              <span>${escapeHtml(timeline)}</span>
+              <strong>${blessing ? escapeHtml(itemDisplayName(blessing)) : "не выбрано"}</strong>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlannerStatSheet(character, buildAnalysis) {
+  const buckets = buildPlannerStatBuckets(character, buildAnalysis);
+  return `
+    <section id="planner-stats" class="sidePanel plannerStats">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Расчеты</p>
+          <h3>Лист характеристик</h3>
+        </div>
+      </div>
+      <div class="statModeRow">
+        <span class="active">Факт</span>
+        <span>Мин</span>
+        <span>Средн</span>
+        <span>Макс</span>
+      </div>
+      ${buckets
+        .map(
+          (bucket) => `
+            <div class="statBucket">
+              <h4>${escapeHtml(bucket.title)}</h4>
+              ${bucket.rows.map(([label, value]) => statLine(label, value)).join("")}
+            </div>
+          `,
+        )
+        .join("")}
+    </section>
+  `;
+}
+
+function buildPlannerStatBuckets(character, buildAnalysis) {
+  const metrics = buildAnalysis.metrics ?? {};
+  const profile = buildAnalysis.model?.knowledge ?? {};
+  const equipment = character?.equipment ?? {};
+  const decodedEquipment = equipment.decodedItems ?? 0;
+  const passivePoints = sumNumbers(character?.passiveTree?.nodePointsList ?? []);
+  const skillPoints = sumNumbers((character?.skills?.trees ?? []).flatMap((tree) => tree.nodePointsList ?? []));
+  return [
+    {
+      title: "Персонаж",
+      rows: [
+        ["Уровень", displayValue(character?.level)],
+        ["Режим", character?.hardcore ? "Хардкор" : "Софткор"],
+        ["Архетип", archetypeLabel(profile.archetype?.name ?? profile.archetype?.primary)],
+        ["Очки пассивок", passivePoints || displayValue(character?.passiveTree?.nodePoints)],
+      ],
+    },
+    {
+      title: "Экипировка",
+      rows: [
+        ["Надето", equipment.equippedItems?.length ?? 0],
+        ["Распознано", decodedEquipment],
+        ["Предметов в stash", buildAnalysis.model?.stash?.itemRecordCount ?? 0],
+        ["Кандидатов", decodedUpgradeCandidates(buildAnalysis.model?.stash?.upgradeCandidates ?? []).length],
+      ],
+    },
+    {
+      title: "Готовность",
+      rows: [
+        ["Парсинг", `${metrics.parseCompleteness ?? 0}%`],
+        ["Защита", `${metrics.defensiveReadiness ?? 0}%`],
+        ["Навыки", `${metrics.skillReadiness ?? 0}%`],
+        ["Игровые данные", `${metrics.knowledgeReadiness ?? 0}%`],
+      ],
+    },
+    {
+      title: "Навыки",
+      rows: [
+        ["Слотов панели", character?.skills?.abilityBarSlots ?? 0],
+        ["Специализаций", character?.skills?.specializedTrees ?? 0],
+        ["Очки в деревьях", skillPoints],
+        ["Свободно пассивок", character?.passiveTree?.unspentPoints ?? 0],
+      ],
+    },
+  ];
+}
+
+function statLine(label, value) {
+  return `
+    <div class="statLine">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(displayValue(value))}</strong>
+    </div>
+  `;
+}
+
+function renderPlannerConditions(buildAnalysis) {
+  const profile = buildAnalysis.model?.knowledge ?? {};
+  const tags = [...(profile.tags?.damage ?? []), ...(profile.tags?.utility ?? []), ...(profile.tags?.defense ?? [])];
+  const conditions = [
+    ["Босс", "single target"],
+    ["Монолит", "clear"],
+    ["Низкое здоровье", "defense"],
+    ["Защитный щит", tags.includes("ward") ? "active" : "scenario"],
+    ["Миньоны", tags.includes("minion") ? "active" : "scenario"],
+    ["DoT", tags.includes("ailment") ? "active" : "scenario"],
+    ["Перемещение", tags.includes("movement") ? "active" : "scenario"],
+    ["Хардкор", activeCharacter(buildAnalysis.model)?.hardcore ? "active" : "scenario"],
+  ];
+  return `
+    <section class="sidePanel plannerConditions">
+      <h3>Условия боя</h3>
+      <div class="conditionGrid">
+        ${conditions.map(([label, state]) => `<span class="conditionChip ${state === "active" ? "active" : ""}">${escapeHtml(label)}</span>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderPlannerFilterPanel(buildAnalysis) {
+  const priorities = buildAnalysis.model?.knowledge?.priorities ?? [];
+  return `
+    <section id="planner-filter" class="sidePanel plannerFilter">
+      <h3>Лут-фильтр</h3>
+      <div class="filterRuleList">
+        ${priorities.length ? priorities.slice(0, 5).map((priority) => `<span>${escapeHtml(priority.title)}</span>`).join("") : "<span>Базовый review-фильтр</span>"}
+      </div>
+      <button id="plannerFilterButtonInline" class="fullButton">Создать review-фильтр</button>
+    </section>
+  `;
+}
+
+function renderPlannerDataReadiness(buildAnalysis) {
+  return `
+    <section class="sidePanel">
+      <h3>Готовность данных</h3>
+      <div class="scoreList">
+        ${scoreRow("Полнота", buildAnalysis.metrics?.parseCompleteness)}
+        ${scoreRow("Уверенность", buildAnalysis.metrics?.confidence)}
+        ${scoreRow("Прокачка", buildAnalysis.metrics?.progressionReadiness)}
+        ${scoreRow("Защита", buildAnalysis.metrics?.defensiveReadiness)}
+        ${scoreRow("Навыки", buildAnalysis.metrics?.skillReadiness)}
+        ${scoreRow("Сундук", buildAnalysis.metrics?.stashReadiness)}
+        ${scoreRow("Игровые данные", buildAnalysis.metrics?.knowledgeReadiness)}
+      </div>
+    </section>
+  `;
+}
+
+function renderPlannerAdvice(buildAnalysis) {
+  return `
+    <section class="buildPanel plannerAdviceMatrix">
+      <div class="panelHeading">
+        <div>
+          <p class="eyebrow">Советник</p>
+          <h3>Что менять в билде</h3>
+        </div>
+      </div>
+      <div class="adviceMatrix">
+        ${plannerAdviceColumn("Что не так", buildAnalysis.issues ?? [], "body")}
+        ${plannerAdviceColumn("Что даст эффект", buildAnalysis.recommendations ?? [], "action")}
+        ${plannerAdviceColumn("Почему", buildAnalysis.model?.knowledge?.priorities ?? [], "reason")}
+        ${plannerAdviceColumn("Маршрут", buildAnalysis.plan?.steps ?? [], "action")}
+      </div>
+    </section>
+  `;
+}
+
+function plannerAdviceColumn(title, items, bodyKey) {
+  const visible = (items ?? []).slice(0, 4);
+  return `
+    <div class="adviceColumn">
+      <h4>${escapeHtml(title)}</h4>
+      ${
+        visible.length
+          ? visible
+              .map(
+                (item) => `
+                  <article class="recommendation ${escapeHtml(item.severity ?? "")}">
+                    <h3>${escapeHtml(item.title ?? item.id ?? "Шаг")}</h3>
+                    <p>${escapeHtml(item[bodyKey] ?? item.expectedEffect ?? item.action ?? item.body ?? "")}</p>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<p class="muted">Нет данных.</p>`
+      }
+    </div>
+  `;
+}
+
+function sumNumbers(values) {
+  return (values ?? []).reduce((sum, value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? sum + number : sum;
+  }, 0);
 }
 
 function renderEquipmentSlot(slot, label, item) {
@@ -821,9 +1119,9 @@ function renderBuildProfile(profile, gameData) {
       <h3>Профиль билда</h3>
       <div class="cardGrid smallCards">
         ${infoCard("Архетип", archetypeLabel(profile.archetype?.name ?? profile.archetype?.primary), `Уверенность game-data слоя: ${Math.round((profile.confidence ?? 0) * 100)}%.`)}
-        ${infoCard("Фаза", profile.phase === "endgame" ? "endgame" : "прокачка", `База знаний: ${gameData?.version ?? profile.version ?? "starter"}.`)}
-        ${infoCard("Damage tags", profile.tags?.damage?.join(", ") || "не найдены", "Теги из активных навыков, по которым стоит фильтровать урон и идолы.")}
-        ${infoCard("Utility", profile.tags?.utility?.join(", ") || "не найдена", "Movement/sustain/utility сигналы из skill bar.")}
+        ${infoCard("Фаза", profile.phase === "endgame" ? "эндгейм" : "прокачка", `База знаний: ${gameData?.version ?? profile.version ?? "starter"}.`)}
+        ${infoCard("Теги урона", profile.tags?.damage?.join(", ") || "не найдены", "Теги из активных навыков, по которым стоит фильтровать урон и идолы.")}
+        ${infoCard("Утилити", profile.tags?.utility?.join(", ") || "не найдена", "Сигналы движения, выживаемости и утилити из панели навыков.")}
       </div>
       ${renderPriorityList(profile.priorities ?? [])}
     </section>
@@ -1082,6 +1380,56 @@ async function generateFilter(id) {
   link.download = response.fileName;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+async function copyPlannerLink() {
+  const snapshotId = state.currentSnapshot?.id ?? state.selectedId;
+  const url = new URL(location.href);
+  if (snapshotId) url.searchParams.set("snapshot", snapshotId);
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url.toString());
+  } else {
+    const input = document.createElement("textarea");
+    input.value = url.toString();
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    input.remove();
+  }
+  markButtonDone("plannerCopyLinkButton", "Ссылка скопирована");
+}
+
+function exportPlannerJson() {
+  const snapshotId = state.currentSnapshot?.id ?? state.selectedId ?? "build";
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    source: "last-epoch-companion-planner",
+    snapshot: state.currentSnapshot,
+    analysis: state.currentAnalysis,
+    buildAnalysis: state.currentBuildAnalysis,
+  };
+  downloadJson(`last-epoch-build-${snapshotId}.json`, payload);
+  markButtonDone("plannerExportButton", "Билд скачан");
+}
+
+function downloadJson(fileName, payload) {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function markButtonDone(id, label) {
+  const button = document.querySelector(`#${id}`);
+  if (!button) return;
+  const previous = button.textContent;
+  button.textContent = label;
+  window.setTimeout(() => {
+    button.textContent = previous;
+  }, 1600);
 }
 
 function renderFilesTable(files) {

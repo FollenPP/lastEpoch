@@ -296,6 +296,92 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+.plannerShell {
+  display: grid;
+  gap: 12px;
+}
+
+.plannerToolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #151a22;
+  padding: 14px;
+}
+
+.plannerToolbar h3,
+.plannerToolbar p {
+  margin-bottom: 0;
+}
+
+.plannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.plannerActions button {
+  min-height: 38px;
+  padding: 8px 11px;
+}
+
+.plannerNav {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(20, 25, 34, 0.96);
+  padding: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.plannerNav a {
+  min-height: 32px;
+  border: 1px solid #384253;
+  border-radius: 6px;
+  background: #101720;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.plannerNav a:hover {
+  border-color: var(--accent-2);
+}
+
+.plannerLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 14px;
+  align-items: start;
+}
+
+.plannerMain,
+.plannerInspector {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.plannerInspector {
+  position: sticky;
+  top: 58px;
+}
+
+.plannerPane {
+  scroll-margin-top: 70px;
+}
+
 .buildPanel,
 .sidePanel {
   border: 1px solid var(--line);
@@ -311,6 +397,164 @@ h3 {
 .sidePanel .infoCard,
 .sidePanel .recommendation {
   background: #121720;
+}
+
+.plannerAuxGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 14px;
+}
+
+.plannerAuxGrid h4,
+.statBucket h4,
+.adviceColumn h4 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idolBoard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.idolCell {
+  min-height: 82px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #10151d;
+  padding: 8px;
+}
+
+.idolCell.empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: repeating-linear-gradient(135deg, #10151d, #10151d 8px, #151b24 8px, #151b24 16px);
+}
+
+.idolCell .compactItemName {
+  min-height: 0;
+  font-size: 12px;
+}
+
+.blessingBoard {
+  display: grid;
+  gap: 8px;
+}
+
+.blessingSlot {
+  display: grid;
+  gap: 4px;
+  min-height: 62px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #10151d;
+  padding: 9px;
+}
+
+.blessingSlot span,
+.statLine span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.blessingSlot strong,
+.statLine strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.statModeRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.statModeRow span {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #10151d;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.statModeRow .active {
+  border-color: #5c7f94;
+  color: var(--text);
+}
+
+.statBucket {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
+.statBucket + .statBucket {
+  margin-top: 10px;
+}
+
+.statLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.conditionGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.conditionChip,
+.filterRuleList span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid #384253;
+  border-radius: 999px;
+  background: #10151d;
+  padding: 4px 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.conditionChip.active {
+  border-color: var(--accent);
+  color: #baf6cd;
+}
+
+.filterRuleList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.adviceMatrix {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.adviceColumn {
+  min-width: 0;
+}
+
+.adviceColumn .recommendation {
+  margin-top: 8px;
+  background: #111720;
 }
 
 .panelHeading,
@@ -1157,8 +1401,28 @@ pre {
 
   .buildHero,
   .buildDashboard,
-  .treeLayout {
+  .treeLayout,
+  .plannerLayout,
+  .plannerAuxGrid,
+  .adviceMatrix {
     grid-template-columns: 1fr;
+  }
+
+  .plannerToolbar {
+    display: grid;
+  }
+
+  .plannerActions {
+    justify-content: stretch;
+  }
+
+  .plannerActions button {
+    flex: 1 1 140px;
+  }
+
+  .plannerInspector,
+  .plannerNav {
+    position: static;
   }
 
   .buildAside {
@@ -1183,6 +1447,10 @@ pre {
 
   .skillBar {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .idolBoard {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .panel {
