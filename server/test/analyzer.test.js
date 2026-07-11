@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeFile } from "../src/analyzer.js";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { analyzeFile, analyzeSnapshot } from "../src/analyzer.js";
 import { generateReviewFilter } from "../src/filter-generator.js";
 
 test("analyzeFile classifies stash files and extracts text signals", () => {
@@ -35,6 +38,7 @@ test("analyzeFile reads basic loot filter stats", () => {
         <rules>
           <Rule><type>SHOW</type></Rule>
           <Rule><type>HIDE</type></Rule>
+          <rule><type>highlight</type></rule>
         </rules>
       </ItemFilter>
     `),
@@ -43,11 +47,64 @@ test("analyzeFile reads basic loot filter stats", () => {
   assert.equal(result.classification, "filter");
   assert.deepEqual(result.filterStats, {
     name: "My Filter",
-    ruleCount: 2,
+    ruleCount: 3,
     showCount: 1,
     hideCount: 1,
-    highlightCount: 0,
+    highlightCount: 1,
   });
+});
+
+test("analyzeFile parses EPOCH-prefixed character JSON", () => {
+  const result = analyzeFile(
+    {
+      kind: "save",
+      relativePath: "1CHARACTERSLOT_BETA_1",
+      size: 512,
+      mtimeMs: 0,
+      sha256: "hash",
+    },
+    Buffer.from(
+      `EPOCH{"characterName":"AdletM","level":42,"hardcore":false,"died":false,"deaths":0,"savedCharacterTree":{"treeID":3,"nodeIDs":[1,2,3],"nodePoints":[5,3,1],"unspentPoints":2},"savedSkillTrees":[{"treeID":10},{"treeID":11}],"abilityBar":{"slot0":"sp5g2","slot1":"ws54hm"}}`,
+    ),
+  );
+
+  assert.equal(result.classification, "character");
+  assert.equal(result.json.rootType, "object");
+  assert.equal(result.gameSummary.name, "AdletM");
+  assert.equal(result.gameSummary.level, 42);
+  assert.equal(result.gameSummary.passiveTree.nodeIds, 3);
+  assert.equal(result.gameSummary.skills.specializedTrees, 2);
+});
+
+test("analyzeSnapshot creates one card per item record", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "le-analyzer-"));
+  try {
+    await fs.writeFile(
+      path.join(tempDir, "STASH_CYCLE_7_1_TAB_0"),
+      `EPOCH{"displayName":"idols","savedItems":[{"itemData":{"data":[9,8,7,6]},"quantity":2,"containerID":6,"inventoryPosition":[1,2],"formatVersion":3}]}`,
+      "utf8",
+    );
+    const manifest = {
+      id: "test",
+      files: [
+        {
+          kind: "save",
+          relativePath: "STASH_CYCLE_7_1_TAB_0",
+          size: 128,
+          mtimeMs: 0,
+          sha256: "hash",
+        },
+      ],
+    };
+
+    const analysis = await analyzeSnapshot(manifest, tempDir);
+
+    assert.equal(analysis.game.items.totalRecords, 1);
+    assert.equal(analysis.game.items.cards[0].sourceName, "idols");
+    assert.equal(analysis.game.items.cards[0].dataLength, 4);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("generateReviewFilter creates a conservative non-hiding filter", () => {

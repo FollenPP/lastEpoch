@@ -1,42 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Last Epoch Deck Companion</title>
+    <title>Last Epoch Companion</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div>
         <p class="eyebrow">Full Offline Steam Deck</p>
-        <h1>Last Epoch Deck Companion</h1>
+        <h1>Last Epoch Companion</h1>
       </div>
-      <button id="refreshButton" class="primary">Refresh</button>
+      <button id="refreshButton" class="primary">Обновить</button>
     </header>
 
     <main class="layout">
       <section class="panel sidebar">
-        <h2>Server</h2>
+        <h2>Сервер</h2>
         <dl id="serverInfo" class="details"></dl>
         <div class="pairing">
           <label for="pairingToken">Access token</label>
           <div class="tokenRow">
             <input id="pairingToken" type="password" />
-            <button id="toggleToken" title="Show or hide pairing token">Show</button>
+            <button id="toggleToken" title="Показать или скрыть токен">Показать</button>
           </div>
-          <button id="saveToken" class="fullButton">Save Token</button>
+          <button id="saveToken" class="fullButton">Сохранить токен</button>
         </div>
-        <h2>Device Pairing</h2>
+        <h2>Привязка Deck</h2>
         <div id="pairingList" class="snapshotList"></div>
-        <h2>Snapshots</h2>
+        <h2>Снимки</h2>
         <div id="snapshotList" class="snapshotList"></div>
       </section>
 
       <section class="content">
         <div id="emptyState" class="emptyState">
-          <h2>No snapshot selected</h2>
-          <p>Open the Decky plugin on Steam Deck, enter this server URL and token, then press Send Snapshot.</p>
+          <h2>Снимок не выбран</h2>
+          <p>Открой Decky-плагин на Steam Deck, отправь snapshot и выбери его слева.</p>
         </div>
 
         <article id="snapshotDetail" class="hidden"></article>

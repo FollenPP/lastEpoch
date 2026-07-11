@@ -212,6 +212,24 @@ h3 {
   margin-bottom: 24px;
 }
 
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.smallCards {
+  margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.itemGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .metric {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -227,6 +245,105 @@ h3 {
 .metric span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.infoCard,
+.itemCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.infoCard p,
+.itemCard p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.metricValue {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.cardTop h3 {
+  margin-bottom: 0;
+}
+
+.characterCard {
+  display: grid;
+  gap: 12px;
+}
+
+.subPanel {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.subPanel h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.kvGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.kvGrid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+}
+
+.kv {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #121720;
+  padding: 8px;
+}
+
+.kv span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.kv strong {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.adviceList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.adviceList li + li {
+  margin-top: 6px;
 }
 
 .section {
