@@ -33,7 +33,7 @@ except Exception:  # pragma: no cover - local editor fallback only
     decky = _DeckyFallback()
 
 
-PLUGIN_VERSION = "0.1.9"
+PLUGIN_VERSION = "0.1.10"
 SETTINGS_VERSION = 3
 DEFAULT_SERVER_URL = "http://185.201.28.103"
 LAST_EPOCH_STEAM_APP_ID = "899770"
@@ -55,6 +55,13 @@ PROTON_GAME_ROOT_SUFFIX = (
     / "steamuser"
     / "AppData"
     / "LocalLow"
+    / "Eleventh Hour Games"
+    / "Last Epoch"
+)
+STEAM_CLOUD_GAME_ROOT_SUFFIX = (
+    Path(LAST_EPOCH_STEAM_APP_ID)
+    / "ac"
+    / "WinAppDataLocalLow"
     / "Eleventh Hour Games"
     / "Last Epoch"
 )
@@ -494,6 +501,8 @@ def _game_root_candidates():
     candidates = [DEFAULT_GAME_ROOT]
     for steam_library in _steam_library_candidates(home):
         candidates.append(steam_library / PROTON_GAME_ROOT_SUFFIX)
+    for userdata_root in _steam_userdata_candidates(home):
+        candidates.extend(_steam_cloud_game_root_candidates(userdata_root))
     return candidates
 
 
@@ -537,6 +546,28 @@ def _read_steam_library_paths(steam_root):
         if len(parts) >= 4:
             paths.append(Path(parts[3].replace("\\\\", "/")))
     return paths
+
+
+def _steam_userdata_candidates(home):
+    candidates = [
+        home / ".local" / "share" / "Steam" / "userdata",
+        home / ".steam" / "steam" / "userdata",
+        home / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "Steam" / "userdata",
+    ]
+    return _existing_unique_dirs(candidates)
+
+
+def _steam_cloud_game_root_candidates(userdata_root):
+    roots = []
+    try:
+        account_dirs = list(Path(userdata_root).iterdir())
+    except Exception:
+        return roots
+
+    for account_dir in account_dirs:
+        if account_dir.is_dir():
+            roots.append(account_dir / STEAM_CLOUD_GAME_ROOT_SUFFIX)
+    return roots
 
 
 def _existing_unique_dirs(paths):
@@ -622,6 +653,8 @@ def _iter_files(root, kind):
     for file_path in root.rglob("*"):
         if not file_path.is_file() or file_path.is_symlink():
             continue
+        if _is_ignored_file(file_path):
+            continue
         stat = file_path.stat()
         if stat.st_size > MAX_FILE_BYTES:
             continue
@@ -633,6 +666,10 @@ def _iter_files(root, kind):
             "size": stat.st_size,
             "mtimeMs": int(stat.st_mtime * 1000),
         }
+
+
+def _is_ignored_file(file_path):
+    return file_path.name.lower() in {"steam_autocloud.vdf"}
 
 
 def _server_url(settings, suffix):

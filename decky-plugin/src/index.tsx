@@ -63,7 +63,7 @@ const backendSelfTest = callable<[], { ok: boolean; version: string; serverUrl: 
 const defaultSavesRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Saves";
 const defaultFiltersRoot = "/home/deck/.config/unity3d/Eleventh Hour Games/Last Epoch/Filters";
 const defaultServerUrl = "http://185.201.28.103";
-const pluginVersion = "0.1.9";
+const pluginVersion = "0.1.10";
 
 function Content() {
   const [settings, setSettings] = useState<Settings>({
